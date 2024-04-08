@@ -36,6 +36,7 @@ namespace zlt::mylisp::opcode {
     LT,
     LTEQ,
     MAKE_FN,
+    MAKE_HI_REF,
     MOD,
     MUL,
     NEGATIVE,

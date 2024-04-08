@@ -39,6 +39,7 @@ namespace zlt::mylispc {
   declCompile(GetHighRef);
   declCompile(GetRef);
   declCompile(If);
+  declCompile(MakeHighRef);
   declCompile(Null);
   declCompile(Number);
   declCompile(Return);
@@ -106,6 +107,7 @@ namespace zlt::mylispc {
     ifType(GetHighRef);
     ifType(GetRef);
     ifType(If);
+    ifType(MakeHighRef);
     ifType(Null);
     ifType(Number);
     ifType(Return);
@@ -267,6 +269,10 @@ namespace zlt::mylispc {
     dest.put(opcode::JMP);
     write(dest, then.size());
     dest << then;
+  }
+
+  void compile(ostream &dest, const MakeHighRef &src) {
+    dest.put(opcode::MAKE_HI_REF);
   }
 
   void compile(ostream &dest, const Null &src) {
