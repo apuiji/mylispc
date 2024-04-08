@@ -44,6 +44,10 @@ namespace zlt::mylispc {
     GetRef(const char *start, const Reference &ref) noexcept: Node(start), ref(ref) {}
   };
 
+  struct MakeHighRef final: Node {
+    using Node::Node;
+  };
+
   struct SetHighRef final: Node {
     Reference ref;
     UNode value;

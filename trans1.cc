@@ -89,9 +89,9 @@ namespace zlt::mylispc {
   static void transParams(UNodes &dest, const string **params, size_t paramn);
 
   void trans(UNode &dest, Scope &scope, Function &src) {
+    Scope fs(&scope, src.defs);
     UNodes body;
     transParams(body, src.params.data(), src.params.size());
-    Scope fs(&scope, src.defs);
     trans(fs, src.body.begin(), src.body.end());
     body.insert(body.end(), move_iterator(src.body.begin()), move_iterator(src.body.end()));
     dest.reset(new Function1(src.start, std::move(fs.highDefs), std::move(fs.closureDefs), std::move(body)));

@@ -78,7 +78,16 @@ namespace zlt::mylispc {
   }
 
   void trans(UNode &dest, const Defs &highDefs, Function1 &src) {
+    UNodes body;
+    for (auto name : src.highDefs) {
+      Reference ref(Reference::LOCAL_SCOPE, name);
+      UNode value(new MakeHighRef);
+      body.push_back({});
+      body.back().reset(new SetRef(nullptr, ref, std::move(value)));
+    }
     trans(src.highDefs, src.body.begin(), src.body.end());
+    body.insert(body.end(), move_iterator(src.body.begin()), move_iterator(src.body.end()));
+    src.body = std::move(body);
   }
 
   static bool isHighDef(const Defs &highDefs, const Reference &ref) noexcept;
