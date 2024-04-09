@@ -112,7 +112,7 @@ namespace zlt::mylispc {
       dest.back().reset(new SetRef(nullptr, ref, std::move(value)));
     }
     dest.push_back({});
-    dest.back().reset(new ClearArgs);
+    dest.back().reset(new CleanArgs);
   }
 
   static Reference findDef(Scope &scope, const string *name, bool local);

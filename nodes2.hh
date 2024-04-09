@@ -8,8 +8,8 @@ namespace zlt::mylispc {
     Argument(size_t index) noexcept: index(index) {}
   };
 
-  struct ClearArgs final: Node {
-    ClearArgs() noexcept: Node() {}
+  struct CleanArgs final: Node {
+    CleanArgs() noexcept: Node() {}
   };
 
   struct Reference {

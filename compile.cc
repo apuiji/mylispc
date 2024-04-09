@@ -32,7 +32,7 @@ namespace zlt::mylispc {
   declCompile(Call);
   declCompile(Callee);
   declCompile(CharAtom);
-  declCompile(ClearArgs);
+  declCompile(CleanArgs);
   declCompile(Defer);
   declCompile(Forward);
   declCompile(Function1);
@@ -100,7 +100,7 @@ namespace zlt::mylispc {
     ifType(Call);
     ifType(Callee);
     ifType(CharAtom);
-    ifType(ClearArgs);
+    ifType(CleanArgs);
     ifType(Defer);
     ifType(Forward);
     ifType(Function1);
@@ -188,8 +188,8 @@ namespace zlt::mylispc {
     dest.put(src.value);
   }
 
-  void compile(ostream &dest, const ClearArgs &src) {
-    dest.put(opcode::CLEAR_ARGS);
+  void compile(ostream &dest, const CleanArgs &src) {
+    dest.put(opcode::CLEAN_ARGS);
   }
 
   void compile(ostream &dest, const Defer &src) {
@@ -204,7 +204,7 @@ namespace zlt::mylispc {
       compile(dest, a);
       dest.put(opcode::PUSH);
     }
-    dest.put(opcode::CLEAR_FN_DEFERS);
+    dest.put(opcode::CLEAN_FN_DEFERS);
     dest.put(opcode::FORWARD);
     write(dest, src.args.size() + 1);
   }
@@ -286,7 +286,7 @@ namespace zlt::mylispc {
 
   void compile(ostream &dest, const Return &src) {
     compile(dest, src.value);
-    dest.put(opcode::CLEAR_FN_DEFERS);
+    dest.put(opcode::CLEAN_FN_DEFERS);
     dest.put(opcode::RETURN);
   }
 
@@ -316,7 +316,7 @@ namespace zlt::mylispc {
 
   void compile(ostream &dest, const Throw &src) {
     compile(dest, src.value);
-    dest.put(opcode::CLEAR_TRY_DEFERS);
+    dest.put(opcode::CLEAN_TRY_DEFERS);
     dest.put(opcode::THROW);
   }
 
