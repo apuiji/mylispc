@@ -240,7 +240,7 @@ namespace zlt::mylispc {
       return;
     }
     if (a.size() != src.items.size()) {
-      a.push_back(number(b));
+      a.push_front(number(b));
     }
     src.items = std::move(a);
   }
@@ -275,7 +275,7 @@ namespace zlt::mylispc {
       return;
     }
     if (a.size() != src.items.size()) {
-      a.push_back(number(b));
+      a.push_front(number(b));
     }
     src.items = std::move(a);
   }
@@ -394,7 +394,7 @@ namespace zlt::mylispc {
       return;
     }
     if (a.size() != src.items.size()) {
-      a.push_back(number(b));
+      a.push_front(number(b));
     }
     src.items = std::move(a);
   }
@@ -409,7 +409,7 @@ namespace zlt::mylispc {
       return;
     }
     if (a.size() != src.items.size()) {
-      a.push_back(number(b));
+      a.push_front(number(b));
     }
     src.items = std::move(a);
   }
@@ -431,7 +431,7 @@ namespace zlt::mylispc {
       return;
     }
     if (a.size() != src.items.size()) {
-      a.push_back(number(b));
+      a.push_front(number(b));
     }
     src.items = std::move(a);
   }
