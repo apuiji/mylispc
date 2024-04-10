@@ -5,11 +5,14 @@
 #include"token.hh"
 
 namespace zlt::mylispc {
-  struct Call final: Node {
+  struct Calling {
     UNode callee;
     UNodes args;
-    Call(const char *start, UNode &&callee, UNodes &&args) noexcept:
-    Node(start), callee(std::move(callee)), args(std::move(args)) {}
+    Calling(UNode &&callee, UNodes &&args) noexcept: callee(std::move(callee)), args(std::move(args)) {}
+  };
+
+  struct Call final: Node, Calling {
+    Call(const char *start, Calling &&calling) noexcept: Node(start), Calling(std::move(calling)) {}
   };
 
   struct Callee final: Node {
@@ -21,28 +24,17 @@ namespace zlt::mylispc {
     Defer(const char *start, UNode &&value) noexcept: Node(start), value(std::move(value)) {}
   };
 
-  struct Forward final: Node {
-    UNode callee;
-    UNodes args;
-    Forward(const char *start, UNode &&callee, UNodes &&args) noexcept:
-    Node(start), callee(std::move(callee)), args(std::move(args)) {}
+  struct Forward final: Node, Calling {
+    Forward(const char *start, Calling &&calling) noexcept: Node(start), Calling(std::move(calling)) {}
   };
 
-  struct GlobalForward final: Node {
-    UNode callee;
-    UNodes args;
-    GlobalForward(const char *start, UNode &&callee, UNodes &&args) noexcept:
-    Node(start), callee(std::move(callee)), args(std::move(args)) {}
+  struct GlobalForward final: Node, Calling {
+    GlobalForward(const char *start, Calling &&calling) noexcept: Node(start), Calling(std::move(calling)) {}
   };
 
   struct GlobalReturn final: Node {
     UNode value;
     GlobalReturn(const char *start, UNode &&value) noexcept: Node(start), value(std::move(value)) {}
-  };
-
-  struct GlobalThrow final: Node {
-    UNode value;
-    GlobalThrow(const char *start, UNode &&value) noexcept: Node(start), value(std::move(value)) {}
   };
 
   struct Function final: Node {
@@ -95,9 +87,8 @@ namespace zlt::mylispc {
     Throw(const char *start, UNode &&value) noexcept: Node(start), value(std::move(value)) {}
   };
 
-  struct Try final: Node {
-    UNodes body;
-    Try(const char *start, UNodes &&body) noexcept: Node(start), body(std::move(body)) {}
+  struct Try final: Node, Calling {
+    Try(const char *start, Calling &&calling) noexcept: Node(start), Calling(std::move(calling)) {}
   };
 
   struct Yield final: Node {

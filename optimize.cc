@@ -17,7 +17,6 @@ namespace zlt::mylispc {
   declOptimize(Function);
   declOptimize(GlobalForward);
   declOptimize(GlobalReturn);
-  declOptimize(GlobalThrow);
   declOptimize(If);
   declOptimize(Return);
   declOptimize(SetID);
@@ -69,7 +68,6 @@ namespace zlt::mylispc {
     ifType(Function);
     ifType(GlobalForward);
     ifType(GlobalReturn);
-    ifType(GlobalThrow);
     ifType(If);
     ifType(Return);
     ifType(SetID);
@@ -174,10 +172,6 @@ namespace zlt::mylispc {
     optimize(src.value);
   }
 
-  void optimize(UNode &dest, GlobalThrow &src) {
-    optimize(src.value);
-  }
-
   void optimize(UNode &dest, If &src) {
     optimize(src.cond);
     optimize(src.then);
@@ -206,10 +200,8 @@ namespace zlt::mylispc {
   }
 
   void optimize(UNode &dest, Try &src) {
-    optimize(src.body.begin(), src.body.end());
-    UNodes body;
-    optimizeBody(body, src.body.begin(), src.body.end());
-    src.body = std::move(body);
+    optimize(src.callee);
+    optimize(src.args.begin(), src.args.end());
   }
 
   void optimize(UNode &dest, Yield &src) {

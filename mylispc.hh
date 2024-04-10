@@ -64,12 +64,11 @@ namespace zlt::mylispc {
     }
   }
 
-  void trans(bool outFn, bool outTry, std::set<const std::string *> &defs, UNode &src);
+  void trans(bool global, std::set<const std::string *> &defs, UNode &src);
 
-  static inline void trans(
-    bool outFn, bool outTry, std::set<const std::string *> &defs, UNodes::iterator it, UNodes::iterator end) {
+  static inline void trans(bool global, std::set<const std::string *> &defs, UNodes::iterator it, UNodes::iterator end) {
     for (; it != end; ++it) {
-      trans(outFn, outTry, defs, *it);
+      trans(global, defs, *it);
     }
   }
 

@@ -40,7 +40,6 @@ namespace zlt::mylispc {
   declCompile(GetRef);
   declCompile(GlobalForward);
   declCompile(GlobalReturn);
-  declCompile(GlobalThrow);
   declCompile(If);
   declCompile(MakeHighRef);
   declCompile(Null);
@@ -111,7 +110,6 @@ namespace zlt::mylispc {
     ifType(GetRef);
     ifType(GlobalForward);
     ifType(GlobalReturn);
-    ifType(GlobalThrow);
     ifType(If);
     ifType(MakeHighRef);
     ifType(Null);
@@ -174,13 +172,17 @@ namespace zlt::mylispc {
     write(dest, src.index);
   }
 
-  void compile(ostream &dest, const Call &src) {
+  static void compileCalling(ostream &dest, const Calling &src) {
     compile(dest, src.callee);
     dest.put(opcode::PUSH);
     for (auto &a : src.args) {
       compile(dest, a);
       dest.put(opcode::PUSH);
     }
+  }
+
+  void compile(ostream &dest, const Call &src) {
+    compileCalling(dest, src);
     dest.put(opcode::CALL);
     write(dest, src.args.size() + 1);
   }
@@ -204,12 +206,7 @@ namespace zlt::mylispc {
   }
 
   void compile(ostream &dest, const Forward &src) {
-    compile(dest, src.callee);
-    dest.put(opcode::PUSH);
-    for (auto &a : src.args) {
-      compile(dest, a);
-      dest.put(opcode::PUSH);
-    }
+    compileCalling(dest, src);
     dest.put(opcode::CLEAN_FN_DEFERS);
     dest.put(opcode::FORWARD);
     write(dest, src.args.size() + 1);
@@ -256,12 +253,7 @@ namespace zlt::mylispc {
   }
 
   void compile(ostream &dest, const GlobalForward &src) {
-    compile(dest, src.callee);
-    dest.put(opcode::PUSH);
-    for (auto &a : src.args) {
-      compile(dest, a);
-      dest.put(opcode::PUSH);
-    }
+    compileCalling(dest, src);
     dest.put(opcode::CLEAN_ALL_DEFERS);
     dest.put(opcode::GLOBAL_FORWARD);
     write(dest, src.args.size() + 1);
@@ -271,12 +263,6 @@ namespace zlt::mylispc {
     compile(dest, src.value);
     dest.put(opcode::CLEAN_ALL_DEFERS);
     dest.put(opcode::GLOBAL_RETURN);
-  }
-
-  void compile(ostream &dest, const GlobalThrow &src) {
-    compile(dest, src.value);
-    dest.put(opcode::CLEAN_ALL_DEFERS);
-    dest.put(opcode::GLOBAL_THROW);
   }
 
   void compile(ostream &dest, const If &src) {
@@ -352,7 +338,9 @@ namespace zlt::mylispc {
 
   void compile(ostream &dest, const Try &src) {
     dest.put(opcode::START_TRY);
-    compile(dest, src.body.begin(), src.body.end());
+    compileCalling(dest, src);
+    dest.put(opcode::CALL);
+    write(dest, src.args.size() + 1);
   }
 
   void compile(ostream &dest, const Yield &src) {
