@@ -28,6 +28,23 @@ namespace zlt::mylispc {
     Node(start), callee(std::move(callee)), args(std::move(args)) {}
   };
 
+  struct GlobalForward final: Node {
+    UNode callee;
+    UNodes args;
+    GlobalForward(const char *start, UNode &&callee, UNodes &&args) noexcept:
+    Node(start), callee(std::move(callee)), args(std::move(args)) {}
+  };
+
+  struct GlobalReturn final: Node {
+    UNode value;
+    GlobalReturn(const char *start, UNode &&value) noexcept: Node(start), value(std::move(value)) {}
+  };
+
+  struct GlobalThrow final: Node {
+    UNode value;
+    GlobalThrow(const char *start, UNode &&value) noexcept: Node(start), value(std::move(value)) {}
+  };
+
   struct Function final: Node {
     using Defs = std::set<const std::string *>;
     using Params = std::vector<const std::string *>;

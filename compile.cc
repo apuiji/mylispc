@@ -38,6 +38,9 @@ namespace zlt::mylispc {
   declCompile(Function1);
   declCompile(GetHighRef);
   declCompile(GetRef);
+  declCompile(GlobalForward);
+  declCompile(GlobalReturn);
+  declCompile(GlobalThrow);
   declCompile(If);
   declCompile(MakeHighRef);
   declCompile(Null);
@@ -106,6 +109,9 @@ namespace zlt::mylispc {
     ifType(Function1);
     ifType(GetHighRef);
     ifType(GetRef);
+    ifType(GlobalForward);
+    ifType(GlobalReturn);
+    ifType(GlobalThrow);
     ifType(If);
     ifType(MakeHighRef);
     ifType(Null);
@@ -247,6 +253,30 @@ namespace zlt::mylispc {
 
   void compile(ostream &dest, const GetRef &src) {
     getRef(dest, src.ref);
+  }
+
+  void compile(ostream &dest, const GlobalForward &src) {
+    compile(dest, src.callee);
+    dest.put(opcode::PUSH);
+    for (auto &a : src.args) {
+      compile(dest, a);
+      dest.put(opcode::PUSH);
+    }
+    dest.put(opcode::CLEAN_ALL_DEFERS);
+    dest.put(opcode::GLOBAL_FORWARD);
+    write(dest, src.args.size() + 1);
+  }
+
+  void compile(ostream &dest, const GlobalReturn &src) {
+    compile(dest, src.value);
+    dest.put(opcode::CLEAN_ALL_DEFERS);
+    dest.put(opcode::GLOBAL_RETURN);
+  }
+
+  void compile(ostream &dest, const GlobalThrow &src) {
+    compile(dest, src.value);
+    dest.put(opcode::CLEAN_ALL_DEFERS);
+    dest.put(opcode::GLOBAL_THROW);
   }
 
   void compile(ostream &dest, const If &src) {

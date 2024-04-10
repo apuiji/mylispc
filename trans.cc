@@ -9,9 +9,9 @@ namespace zlt::mylispc {
   using Defs = set<const string *>;
   using It = UNodes::iterator;
 
-  static void transList(UNode &dest, Defs &defs, const char *start, It it, It end);
+  static void transList(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end);
 
-  void trans(Defs &defs, UNode &src) {
+  void trans(bool outFn, bool outTry, Defs &defs, UNode &src) {
     if (auto a = dynamic_cast<const NumberAtom *>(src.get()); a) {
       src.reset(new Number(a->start, a->value));
       return;
@@ -24,25 +24,29 @@ namespace zlt::mylispc {
       return;
     }
     if (auto a = dynamic_cast<List *>(src.get()); a) {
-      transList(src, defs, a->start, a->items.begin(), a->items.end());
+      transList(src, outFn, outTry, defs, a->start, a->items.begin(), a->items.end());
       return;
     }
     auto &a = static_cast<TokenAtom &>(*src);
     if (a.token == "callee"_token) {
-      src.reset(new Callee(a.start));
+      if (outFn) {
+        src.reset(new Null(a.start));
+      } else {
+        src.reset(new Callee(a.start));
+      }
       return;
     }
     throw Bad(bad::UNEXPECTED_TOKEN, src->start);
   }
 
   // aa begin
-  static inline UNodes transItems(Defs &defs, It it, It end) {
-    trans(defs, it, end);
+  static inline UNodes transItems(bool outFn, bool outTry, Defs &defs, It it, It end) {
+    trans(outFn, outTry, defs, it, end);
     return UNodes(move_iterator(it), move_iterator(end));
   }
 
-  static UNode transItem(Defs &defs, It it, It end) {
-    auto a = transItems(defs, it, end);
+  static UNode transItem(bool outFn, bool outTry, Defs &defs, It it, It end) {
+    auto a = transItems(outFn, outTry, defs, it, end);
     if (a.empty()) [[unlikely]] {
       return nvll();
     }
@@ -53,33 +57,33 @@ namespace zlt::mylispc {
     return UNode(new SequenceOper(start, std::move(a)));
   }
 
-  static void transItemN(UNode *dest, size_t n, Defs &defs, It it, It end) {
+  static void transItemN(UNode *dest, size_t n, bool outFn, bool outTry, Defs &defs, It it, It end) {
     for (; n > 1 && it != end; ++dest, --n, ++it) {
-      trans(defs, *it);
+      trans(outFn, outTry, defs, *it);
       *dest = std::move(*it);
     }
     for (; n > 1; ++dest, --n) {
       *dest = nvll();
     }
-    *dest = transItem(defs, it, end);
+    *dest = transItem(outFn, outTry, defs, it, end);
   }
 
   template<class T>
-  static inline void transUnaryOper(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto a = transItem(defs, it, end);
+  static inline void transUnaryOper(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    auto a = transItem(outFn, outTry, defs, it, end);
     dest.reset(new T(start, std::move(a)));
   }
 
   template<class T, size_t N>
-  static inline void transXnaryOper(UNode &dest, Defs &defs, const char *start, It it, It end) {
+  static inline void transXnaryOper(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
     array<UNode, N> a;
-    transItemN(a.data(), N, defs, it, end);
+    transItemN(a.data(), N, outFn, outTry, defs, it, end);
     dest.reset(new T(start, std::move(a)));
   }
 
   template<class T>
-  static inline UNodes &transMultiOper(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto a = transItems(defs, it, end);
+  static inline UNodes &transMultiOper(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    auto a = transItems(outFn, outTry, defs, it, end);
     auto b = new T(start, std::move(a));
     dest.reset(b);
     return b->items;
@@ -87,11 +91,11 @@ namespace zlt::mylispc {
   // aa end
 
   template<int>
-  void trans(UNode &dest, Defs &defs, const char *start, It it, It end);
+  void trans(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end);
 
   #define declTrans(T) \
   template<> \
-  void trans<T##_token>(UNode &dest, Defs &defs, const char *start, It it, It end)
+  void trans<T##_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end)
 
   declTrans("def");
   declTrans("defer");
@@ -132,7 +136,7 @@ namespace zlt::mylispc {
 
   #undef declTrans
 
-  void transList(UNode &dest, Defs &defs, const char *start, It it, It end) {
+  void transList(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
     if (it == end) [[unlikely]] {
       dest = nvll(start);
       return;
@@ -141,7 +145,7 @@ namespace zlt::mylispc {
     int t = ta ? ta->token : -1;
     #define ifToken(T) \
     if (t == T##_token) { \
-      trans<T##_token>(dest, defs, start, ++it, end); \
+      trans<T##_token>(dest, outFn, outTry, defs, start, ++it, end); \
       return; \
     }
     ifToken("def");
@@ -181,13 +185,13 @@ namespace zlt::mylispc {
     ifToken("|");
     ifToken("~");
     #undef ifToken
-    trans(defs, *it);
+    trans(outFn, outTry, defs, *it);
     auto callee = std::move(*it);
-    dest.reset(new Call(start, std::move(callee), transItems(defs, ++it, end)));
+    dest.reset(new Call(start, std::move(callee), transItems(outFn, outTry, defs, ++it, end)));
   }
 
   template<>
-  void trans<"def"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
+  void trans<"def"_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
     if (it == end) [[unlikely]] {
       dest = nvll(start);
       return;
@@ -201,93 +205,106 @@ namespace zlt::mylispc {
   }
 
   template<>
-  void trans<"defer"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    transUnaryOper<Defer>(dest, defs, start, it, end);
+  void trans<"defer"_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    transUnaryOper<Defer>(dest, outFn, outTry, defs, start, it, end);
   }
 
   template<>
-  void trans<"forward"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
+  void trans<"forward"_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
     UNode callee;
     if (it != end) {
-      trans(defs, *it);
+      trans(outFn, outTry, defs, *it);
       callee = std::move(*it);
       ++it;
     } else {
       callee = nvll();
     }
-    dest.reset(new Forward(start, std::move(callee), transItems(defs, it, end)));
+    auto args = transItems(outFn, outTry, defs, it, end);
+    if (outFn) {
+      dest.reset(new GlobalForward(start, std::move(callee), std::move(args)));
+    } else {
+      dest.reset(new Forward(start, std::move(callee), std::move(args)));
+    }
   }
 
-  static void transIf(UNode &dest, Defs &defs, const char *start, It it, It elze, It end);
+  static void transIf(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It elze, It end);
 
   template<>
-  void trans<"if"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
+  void trans<"if"_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
     It elze = it;
     for (; elze != end && !isTokenAtom<"if"_token>(*it); ++elze);
-    transIf(dest, defs, start, it, elze, end);
+    transIf(dest, outFn, outTry, defs, start, it, elze, end);
   }
 
-  static void transElse(UNode &dest, Defs &defs, It it, It end);
+  static void transElse(UNode &dest, bool outFn, bool outTry, Defs &defs, It it, It end);
 
-  void transIf(UNode &dest, Defs &defs, const char *start, It it, It elze, It end) {
+  void transIf(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It elze, It end) {
     UNode cond;
     UNode then;
     if (it == elze) [[unlikely]] {
       cond = nvll();
       then = nvll();
     } else {
-      trans(defs, *it);
+      trans(outFn, outTry, defs, *it);
       cond = std::move(*it);
-      then = transItem(defs, ++it, end);
+      then = transItem(outFn, outTry, defs, ++it, end);
     }
     UNode elze1;
-    transElse(elze1, defs, elze, end);
+    transElse(elze1, outFn, outTry, defs, elze, end);
     dest.reset(new If(start, std::move(cond), std::move(then), std::move(elze1)));
   }
 
-  void transElse(UNode &dest, Defs &defs, It it, It end) {
+  void transElse(UNode &dest, bool outFn, bool outTry, Defs &defs, It it, It end) {
     if (it != end) {
       auto start = (**it).start;
-      trans<"if"_token>(dest, defs, start, ++it, end);
+      trans<"if"_token>(dest, outFn, outTry, defs, start, ++it, end);
     }
   }
 
   template<>
-  void trans<"length"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    transUnaryOper<LengthOper>(dest, defs, start, it, end);
+  void trans<"length"_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    transUnaryOper<LengthOper>(dest, outFn, outTry, defs, start, it, end);
   }
 
   template<>
-  void trans<"return"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    transUnaryOper<Return>(dest, defs, start, it, end);
+  void trans<"return"_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    if (outFn) {
+      transUnaryOper<GlobalReturn>(dest, outFn, outTry, defs, start, it, end);
+    } else {
+      transUnaryOper<Return>(dest, outFn, outTry, defs, start, it, end);
+    }
   }
 
   template<>
-  void trans<"throw"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    transUnaryOper<Throw>(dest, defs, start, it, end);
+  void trans<"throw"_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    if (outTry) {
+      transUnaryOper<GlobalThrow>(dest, outFn, outTry, defs, start, it, end);
+    } else {
+      transUnaryOper<Throw>(dest, outFn, outTry, defs, start, it, end);
+    }
   }
 
   template<>
-  void trans<"try"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto body = transItems(defs, it, end);
+  void trans<"try"_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    auto body = transItems(outFn, false, defs, it, end);
     UNode a(new Throw(nullptr, nvll()));
     body.push_back(std::move(a));
     dest.reset(new Try(start, std::move(body)));
   }
 
   template<>
-  void trans<"yield"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    transUnaryOper<Yield>(dest, defs, start, it, end);
+  void trans<"yield"_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    transUnaryOper<Yield>(dest, outFn, outTry, defs, start, it, end);
   }
 
   template<>
-  void trans<"!"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    transUnaryOper<LogicNotOper>(dest, defs, start, it, end);
+  void trans<"!"_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    transUnaryOper<LogicNotOper>(dest, outFn, outTry, defs, start, it, end);
   }
 
   template<>
-  void trans<"%"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<ArithModOper>(dest, defs, start, it, end);
+  void trans<"%"_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    auto &a = transMultiOper<ArithModOper>(dest, outFn, outTry, defs, start, it, end);
     if (a.empty()) {
       dest = number(0, start);
     } else if (a.size() == 1) {
@@ -296,8 +313,8 @@ namespace zlt::mylispc {
   }
 
   template<>
-  void trans<"&&"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<LogicAndOper>(dest, defs, start, it, end);
+  void trans<"&&"_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    auto &a = transMultiOper<LogicAndOper>(dest, outFn, outTry, defs, start, it, end);
     if (a.empty()) {
       dest = nvll(start);
     } else if (a.size() == 1) {
@@ -306,8 +323,8 @@ namespace zlt::mylispc {
   }
 
   template<>
-  void trans<"&"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<BitwsAndOper>(dest, defs, start, it, end);
+  void trans<"&"_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    auto &a = transMultiOper<BitwsAndOper>(dest, outFn, outTry, defs, start, it, end);
     if (a.empty()) {
       dest = number(0, start);
     } else if (a.size() == 1) {
@@ -316,8 +333,8 @@ namespace zlt::mylispc {
   }
 
   template<>
-  void trans<"**"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<ArithPowOper>(dest, defs, start, it, end);
+  void trans<"**"_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    auto &a = transMultiOper<ArithPowOper>(dest, outFn, outTry, defs, start, it, end);
     if (a.empty()) {
       dest = number(0, start);
     } else if (a.size() == 1) {
@@ -326,8 +343,8 @@ namespace zlt::mylispc {
   }
 
   template<>
-  void trans<"*"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<ArithMulOper>(dest, defs, start, it, end);
+  void trans<"*"_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    auto &a = transMultiOper<ArithMulOper>(dest, outFn, outTry, defs, start, it, end);
     if (a.empty()) {
       dest = number(0, start);
     } else if (a.size() == 1) {
@@ -336,8 +353,8 @@ namespace zlt::mylispc {
   }
 
   template<>
-  void trans<"+"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<ArithAddOper>(dest, defs, start, it, end);
+  void trans<"+"_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    auto &a = transMultiOper<ArithAddOper>(dest, outFn, outTry, defs, start, it, end);
     if (a.empty()) {
       dest = number(0, start);
     } else if (a.size() == 1) {
@@ -346,13 +363,13 @@ namespace zlt::mylispc {
   }
 
   template<>
-  void trans<","_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    dest = transItem(defs, it, end);
+  void trans<","_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    dest = transItem(outFn, outTry, defs, it, end);
   }
 
   template<>
-  void trans<"-"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<ArithSubOper>(dest, defs, start, it, end);
+  void trans<"-"_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    auto &a = transMultiOper<ArithSubOper>(dest, outFn, outTry, defs, start, it, end);
     if (a.empty()) {
       dest = number(0, start);
     } else if (a.size() == 1) {
@@ -361,8 +378,8 @@ namespace zlt::mylispc {
   }
 
   template<>
-  void trans<"."_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<GetMembOper>(dest, defs, start, it, end);
+  void trans<"."_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    auto &a = transMultiOper<GetMembOper>(dest, outFn, outTry, defs, start, it, end);
     if (a.empty()) {
       dest = nvll(start);
     } else if (a.size() == 1) {
@@ -371,8 +388,8 @@ namespace zlt::mylispc {
   }
 
   template<>
-  void trans<"/"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<ArithDivOper>(dest, defs, start, it, end);
+  void trans<"/"_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    auto &a = transMultiOper<ArithDivOper>(dest, outFn, outTry, defs, start, it, end);
     if (a.empty()) {
       dest = nvll(start);
     } else if (a.size() == 1) {
@@ -381,8 +398,8 @@ namespace zlt::mylispc {
   }
 
   template<>
-  void trans<"<<"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<LshOper>(dest, defs, start, it, end);
+  void trans<"<<"_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    auto &a = transMultiOper<LshOper>(dest, outFn, outTry, defs, start, it, end);
     if (a.empty()) {
       dest = number(0, start);
     } else if (a.size() == 1) {
@@ -391,40 +408,40 @@ namespace zlt::mylispc {
   }
 
   template<>
-  void trans<"<=>"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    transXnaryOper<CompareOper, 2>(dest, defs, start, it, end);
+  void trans<"<=>"_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    transXnaryOper<CompareOper, 2>(dest, outFn, outTry, defs, start, it, end);
   }
 
   template<>
-  void trans<"<="_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    transXnaryOper<CmpLteqOper, 2>(dest, defs, start, it, end);
+  void trans<"<="_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    transXnaryOper<CmpLteqOper, 2>(dest, outFn, outTry, defs, start, it, end);
   }
 
   template<>
-  void trans<"<"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    transXnaryOper<CmpLtOper, 2>(dest, defs, start, it, end);
+  void trans<"<"_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    transXnaryOper<CmpLtOper, 2>(dest, outFn, outTry, defs, start, it, end);
   }
 
   template<>
-  void trans<"=="_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    transXnaryOper<CmpEqOper, 2>(dest, defs, start, it, end);
+  void trans<"=="_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    transXnaryOper<CmpEqOper, 2>(dest, outFn, outTry, defs, start, it, end);
   }
 
   static void setMembOper(UNode &dest, Defs &defs, const char *start, UNode &lhs, UNode &value);
 
   template<>
-  void trans<"="_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
+  void trans<"="_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
     if (it == end) [[unlikely]] {
       dest = nvll(start);
       return;
     }
-    trans(defs, *it);
+    trans(outFn, outTry, defs, *it);
     auto a = std::move(*it);
     if (++it == end) [[unlikely]] {
       dest = std::move(a);
       return;
     }
-    auto b = transItem(defs, it, end);
+    auto b = transItem(outFn, outTry, defs, it, end);
     if (auto c = dynamic_cast<ID *>(a.get()); c) {
       dest.reset(new SetID(start, c->name, std::move(b)));
       return;
@@ -454,13 +471,13 @@ namespace zlt::mylispc {
   }
 
   template<>
-  void trans<">="_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    transXnaryOper<CmpGteqOper, 2>(dest, defs, start, it, end);
+  void trans<">="_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    transXnaryOper<CmpGteqOper, 2>(dest, outFn, outTry, defs, start, it, end);
   }
 
   template<>
-  void trans<">>>"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<UshOper>(dest, defs, start, it, end);
+  void trans<">>>"_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    auto &a = transMultiOper<UshOper>(dest, outFn, outTry, defs, start, it, end);
     if (a.empty()) {
       dest = number(0, start);
     } else if (a.size() == 1) {
@@ -469,8 +486,8 @@ namespace zlt::mylispc {
   }
 
   template<>
-  void trans<">>"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<RshOper>(dest, defs, start, it, end);
+  void trans<">>"_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    auto &a = transMultiOper<RshOper>(dest, outFn, outTry, defs, start, it, end);
     if (a.empty()) {
       dest = number(0, start);
     } else if (a.size() == 1) {
@@ -479,14 +496,14 @@ namespace zlt::mylispc {
   }
 
   template<>
-  void trans<">"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    transXnaryOper<CmpGtOper, 2>(dest, defs, start, it, end);
+  void trans<">"_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    transXnaryOper<CmpGtOper, 2>(dest, outFn, outTry, defs, start, it, end);
   }
 
   static void transFnParams(Function::Params &dest, Defs &defs, It it, It end);
 
   template<>
-  void trans<"@"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
+  void trans<"@"_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
     if (it == end) [[unlikely]] {
       dest.reset(new Function(start));
       return;
@@ -498,7 +515,7 @@ namespace zlt::mylispc {
     Defs defs1;
     Function::Params params;
     transFnParams(params, defs1, ls->items.begin(), ls->items.end());
-    auto body = transItems(defs1, ++it, end);
+    auto body = transItems(false, outTry, defs1, ++it, end);
     UNode a(new Return(nullptr, nvll()));
     body.push_back(std::move(a));
     dest.reset(new Function(start, std::move(defs1), std::move(params), std::move(body)));
@@ -518,8 +535,8 @@ namespace zlt::mylispc {
   }
 
   template<>
-  void trans<"^^"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<LogicXorOper>(dest, defs, start, it, end);
+  void trans<"^^"_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    auto &a = transMultiOper<LogicXorOper>(dest, outFn, outTry, defs, start, it, end);
     if (a.empty()) {
       dest = fa1se(start);
     } else if (a.size() == 1) {
@@ -528,8 +545,8 @@ namespace zlt::mylispc {
   }
 
   template<>
-  void trans<"^"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<BitwsXorOper>(dest, defs, start, it, end);
+  void trans<"^"_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    auto &a = transMultiOper<BitwsXorOper>(dest, outFn, outTry, defs, start, it, end);
     if (a.empty()) {
       dest = number(0, start);
     } else if (a.size() == 1) {
@@ -538,8 +555,8 @@ namespace zlt::mylispc {
   }
 
   template<>
-  void trans<"||"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<LogicOrOper>(dest, defs, start, it, end);
+  void trans<"||"_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    auto &a = transMultiOper<LogicOrOper>(dest, outFn, outTry, defs, start, it, end);
     if (a.empty()) {
       dest = nvll(start);
     } else if (a.size() == 1) {
@@ -548,8 +565,8 @@ namespace zlt::mylispc {
   }
 
   template<>
-  void trans<"|"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<BitwsOrOper>(dest, defs, start, it, end);
+  void trans<"|"_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    auto &a = transMultiOper<BitwsOrOper>(dest, outFn, outTry, defs, start, it, end);
     if (a.empty()) {
       dest = number(0, start);
     } else if (a.size() == 1) {
@@ -558,7 +575,7 @@ namespace zlt::mylispc {
   }
 
   template<>
-  void trans<"~"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    transUnaryOper<BitwsNotOper>(dest, defs, start, it, end);
+  void trans<"~"_token>(UNode &dest, bool outFn, bool outTry, Defs &defs, const char *start, It it, It end) {
+    transUnaryOper<BitwsNotOper>(dest, outFn, outTry, defs, start, it, end);
   }
 }

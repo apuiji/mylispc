@@ -35,6 +35,9 @@ namespace zlt::mylispc {
   declTrans(Defer);
   declTrans(Forward);
   declTrans(Function);
+  declTrans(GlobalForward);
+  declTrans(GlobalReturn);
+  declTrans(GlobalThrow);
   declTrans(ID);
   declTrans(If);
   declTrans(Return);
@@ -58,6 +61,9 @@ namespace zlt::mylispc {
     ifType(Defer);
     ifType(Forward);
     ifType(Function);
+    ifType(GlobalForward);
+    ifType(GlobalReturn);
+    ifType(GlobalThrow);
     ifType(ID);
     ifType(If);
     ifType(Return);
@@ -113,6 +119,19 @@ namespace zlt::mylispc {
     }
     dest.push_back({});
     dest.back().reset(new CleanArgs);
+  }
+
+  void trans(UNode &dest, Scope &scope, GlobalForward &src) {
+    trans(scope, src.callee);
+    trans(scope, src.args.begin(), src.args.end());
+  }
+
+  void trans(UNode &dest, Scope &scope, GlobalReturn &src) {
+    trans(scope, src.value);
+  }
+
+  void trans(UNode &dest, Scope &scope, GlobalThrow &src) {
+    trans(scope, src.value);
   }
 
   static Reference findDef(Scope &scope, const string *name, bool local);

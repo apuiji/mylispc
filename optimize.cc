@@ -9,13 +9,15 @@ namespace zlt::mylispc {
   using It = UNodes::iterator;
 
   #define declOptimize(T) \
-  static void optimize(UNode &dest, bool global, T &src)
+  static void optimize(UNode &dest, T &src)
 
   declOptimize(Call);
-  declOptimize(Callee);
   declOptimize(Defer);
   declOptimize(Forward);
   declOptimize(Function);
+  declOptimize(GlobalForward);
+  declOptimize(GlobalReturn);
+  declOptimize(GlobalThrow);
   declOptimize(If);
   declOptimize(Return);
   declOptimize(SetID);
@@ -55,17 +57,19 @@ namespace zlt::mylispc {
 
   #undef declOptimize
 
-  void optimize(bool global, UNode &src) {
+  void optimize(UNode &src) {
     #define ifType(T) \
     if (auto a = dynamic_cast<T *>(src.get()); a) { \
-      optimize(src, global, *a); \
+      optimize(src, *a); \
       return; \
     }
     ifType(Call);
-    ifType(Callee);
     ifType(Defer);
     ifType(Forward);
     ifType(Function);
+    ifType(GlobalForward);
+    ifType(GlobalReturn);
+    ifType(GlobalThrow);
     ifType(If);
     ifType(Return);
     ifType(SetID);
@@ -140,37 +144,44 @@ namespace zlt::mylispc {
   }
   // aa end
 
-  void optimize(UNode &dest, bool global, Call &src) {
-    optimize(global, src.callee);
-    optimize(global, src.args.begin(), src.args.end());
+  void optimize(UNode &dest, Call &src) {
+    optimize(src.callee);
+    optimize(src.args.begin(), src.args.end());
   }
 
-  void optimize(UNode &dest, bool global, Callee &src) {
-    if (global) {
-      dest = nvll(src.start);
-    }
+  void optimize(UNode &dest, Defer &src) {
+    optimize(src.value);
   }
 
-  void optimize(UNode &dest, bool global, Defer &src) {
-    optimize(global, src.value);
+  void optimize(UNode &dest, Forward &src) {
+    optimize(src.callee);
+    optimize(src.args.begin(), src.args.end());
   }
 
-  void optimize(UNode &dest, bool global, Forward &src) {
-    optimize(global, src.callee);
-    optimize(global, src.args.begin(), src.args.end());
-  }
-
-  void optimize(UNode &dest, bool global, Function &src) {
-    optimize(false, src.body.begin(), src.body.end());
+  void optimize(UNode &dest, Function &src) {
+    optimize(src.body.begin(), src.body.end());
     UNodes body;
     optimizeBody(body, src.body.begin(), src.body.end());
     src.body = std::move(body);
   }
 
-  void optimize(UNode &dest, bool global, If &src) {
-    optimize(global, src.cond);
-    optimize(global, src.then);
-    optimize(global, src.elze);
+  void optimize(UNode &dest, GlobalForward &src) {
+    optimize(src.callee);
+    optimize(src.args.begin(), src.args.end());
+  }
+
+  void optimize(UNode &dest, GlobalReturn &src) {
+    optimize(src.value);
+  }
+
+  void optimize(UNode &dest, GlobalThrow &src) {
+    optimize(src.value);
+  }
+
+  void optimize(UNode &dest, If &src) {
+    optimize(src.cond);
+    optimize(src.then);
+    optimize(src.elze);
     if (bool b; isBoolConst(b, src.cond)) {
       dest = std::move(b ? src.then : src.elze);
       return;
@@ -182,37 +193,37 @@ namespace zlt::mylispc {
     }
   }
 
-  void optimize(UNode &dest, bool global, Return &src) {
-    optimize(global, src.value);
+  void optimize(UNode &dest, Return &src) {
+    optimize(src.value);
   }
 
-  void optimize(UNode &dest, bool global, SetID &src) {
-    optimize(global, src.value);
+  void optimize(UNode &dest, SetID &src) {
+    optimize(src.value);
   }
 
-  void optimize(UNode &dest, bool global, Throw &src) {
-    optimize(global, src.value);
+  void optimize(UNode &dest, Throw &src) {
+    optimize(src.value);
   }
 
-  void optimize(UNode &dest, bool global, Try &src) {
-    optimize(global, src.body.begin(), src.body.end());
+  void optimize(UNode &dest, Try &src) {
+    optimize(src.body.begin(), src.body.end());
     UNodes body;
     optimizeBody(body, src.body.begin(), src.body.end());
     src.body = std::move(body);
   }
 
-  void optimize(UNode &dest, bool global, Yield &src) {
-    optimize(global, src.then);
+  void optimize(UNode &dest, Yield &src) {
+    optimize(src.then);
   }
 
   // operations begin
-  void optimize(UNode &dest, bool global, Operation<1> &src) {
-    optimize(global, src.item);
+  void optimize(UNode &dest, Operation<1> &src) {
+    optimize(src.item);
   }
 
   template<int N>
-  void optimize(UNode &dest, bool global, Operation<N> &src) {
-    optimize(global, src.items.begin(), src.items.end());
+  void optimize(UNode &dest, Operation<N> &src) {
+    optimize(src.items.begin(), src.items.end());
   }
 
   // arithmetical operations begin
@@ -227,8 +238,8 @@ namespace zlt::mylispc {
     }
   }
 
-  void optimize(UNode &dest, bool global, ArithAddOper &src) {
-    optimize(global, src.items.begin(), src.items.end());
+  void optimize(UNode &dest, ArithAddOper &src) {
+    optimize(src.items.begin(), src.items.end());
     UNodes a;
     double b = 0;
     sum(a, b, src.items.begin(), src.items.end(), isNumConst, plus<double>());
@@ -242,8 +253,8 @@ namespace zlt::mylispc {
     src.items = std::move(a);
   }
 
-  void optimize(UNode &dest, bool global, ArithSubOper &src) {
-    optimize(global, src.items.begin(), src.items.end());
+  void optimize(UNode &dest, ArithSubOper &src) {
+    optimize(src.items.begin(), src.items.end());
     UNodes a;
     double b = 0;
     sum(a, b, next(src.items.begin()), src.items.end(), isNumConst, plus<double>());
@@ -262,8 +273,8 @@ namespace zlt::mylispc {
     src.items = std::move(a);
   }
 
-  void optimize(UNode &dest, bool global, ArithMulOper &src) {
-    optimize(global, src.items.begin(), src.items.end());
+  void optimize(UNode &dest, ArithMulOper &src) {
+    optimize(src.items.begin(), src.items.end());
     UNodes a;
     double b = 1;
     sum(a, b, src.items.begin(), src.items.end(), isNumConst, multiplies<double>());
@@ -277,8 +288,8 @@ namespace zlt::mylispc {
     src.items = std::move(a);
   }
 
-  void optimize(UNode &dest, bool global, ArithDivOper &src) {
-    optimize(global, src.items.begin(), src.items.end());
+  void optimize(UNode &dest, ArithDivOper &src) {
+    optimize(src.items.begin(), src.items.end());
     UNodes a;
     double b = 0;
     sum(a, b, next(src.items.begin()), src.items.end(), isNumConst, multiplies<double>());
@@ -301,8 +312,8 @@ namespace zlt::mylispc {
   // logical operations begin
   static bool logicAnd(UNodes &dest, It it, It end);
 
-  void optimize(UNode &dest, bool global, LogicAndOper &src) {
-    optimize(global, src.items.begin(), src.items.end());
+  void optimize(UNode &dest, LogicAndOper &src) {
+    optimize(src.items.begin(), src.items.end());
     UNodes a;
     if (logicAnd(a, src.items.begin(), prev(src.items.end()))) {
       a.push_back(std::move(src.items.back()));
@@ -330,8 +341,8 @@ namespace zlt::mylispc {
 
   static bool logicOr(UNodes &dest, It it, It end);
 
-  void optimize(UNode &dest, bool global, LogicOrOper &src) {
-    optimize(global, src.items.begin(), src.items.end());
+  void optimize(UNode &dest, LogicOrOper &src) {
+    optimize(src.items.begin(), src.items.end());
     UNodes a;
     if (logicOr(a, src.items.begin(), prev(src.items.end()))) {
       a.push_back(std::move(src.items.back()));
@@ -357,15 +368,15 @@ namespace zlt::mylispc {
     return true;
   }
 
-  void optimize(UNode &dest, bool global, LogicNotOper &src) {
-    optimize(global, src.item);
+  void optimize(UNode &dest, LogicNotOper &src) {
+    optimize(src.item);
     if (bool b; isBoolConst(b, src.item)) {
       dest = boo1(!b, src.start);
     }
   }
 
-  void optimize(UNode &dest, bool global, LogicXorOper &src) {
-    optimize(global, src.items.begin(), src.items.end());
+  void optimize(UNode &dest, LogicXorOper &src) {
+    optimize(src.items.begin(), src.items.end());
     UNodes a;
     bool b = false;
     sum(a, b, src.items.begin(), src.items.end(), isBoolConst, [] (bool x, bool y) { return x ^ y; });
@@ -381,8 +392,8 @@ namespace zlt::mylispc {
   // logical operations end
 
   // bitwise operations begin
-  void optimize(UNode &dest, bool global, BitwsAndOper &src) {
-    optimize(global, src.items.begin(), src.items.end());
+  void optimize(UNode &dest, BitwsAndOper &src) {
+    optimize(src.items.begin(), src.items.end());
     UNodes a;
     int b = 0;
     sum(a, b, src.items.begin(), src.items.end(), isIntConst, bit_and<int>());
@@ -396,8 +407,8 @@ namespace zlt::mylispc {
     src.items = std::move(a);
   }
 
-  void optimize(UNode &dest, bool global, BitwsOrOper &src) {
-    optimize(global, src.items.begin(), src.items.end());
+  void optimize(UNode &dest, BitwsOrOper &src) {
+    optimize(src.items.begin(), src.items.end());
     UNodes a;
     int b = 0;
     sum(a, b, src.items.begin(), src.items.end(), isIntConst, bit_or<int>());
@@ -411,15 +422,15 @@ namespace zlt::mylispc {
     src.items = std::move(a);
   }
 
-  void optimize(UNode &dest, bool global, BitwsNotOper &src) {
-    optimize(global, src.item);
+  void optimize(UNode &dest, BitwsNotOper &src) {
+    optimize(src.item);
     if (int i; isIntConst(i, src.item)) {
       dest = number(~i, src.start);
     }
   }
 
-  void optimize(UNode &dest, bool global, BitwsXorOper &src) {
-    optimize(global, src.items.begin(), src.items.end());
+  void optimize(UNode &dest, BitwsXorOper &src) {
+    optimize(src.items.begin(), src.items.end());
     UNodes a;
     int b = 0;
     sum(a, b, src.items.begin(), src.items.end(), isIntConst, bit_xor<int>());
@@ -433,8 +444,8 @@ namespace zlt::mylispc {
     src.items = std::move(a);
   }
 
-  void optimize(UNode &dest, bool global, LshOper &src) {
-    optimize(global, src.items.begin(), src.items.end());
+  void optimize(UNode &dest, LshOper &src) {
+    optimize(src.items.begin(), src.items.end());
     UNodes a;
     int b = 0;
     sum(a, b, next(src.items.begin()), src.items.end(), isIntConst, plus<int>());
@@ -453,8 +464,8 @@ namespace zlt::mylispc {
     src.items = std::move(a);
   }
 
-  void optimize(UNode &dest, bool global, RshOper &src) {
-    optimize(global, src.items.begin(), src.items.end());
+  void optimize(UNode &dest, RshOper &src) {
+    optimize(src.items.begin(), src.items.end());
     UNodes a;
     int b = 0;
     sum(a, b, next(src.items.begin()), src.items.end(), isIntConst, plus<int>());
@@ -473,8 +484,8 @@ namespace zlt::mylispc {
     src.items = std::move(a);
   }
 
-  void optimize(UNode &dest, bool global, UshOper &src) {
-    optimize(global, src.items.begin(), src.items.end());
+  void optimize(UNode &dest, UshOper &src) {
+    optimize(src.items.begin(), src.items.end());
     UNodes a;
     int b = 0;
     sum(a, b, next(src.items.begin()), src.items.end(), isIntConst, plus<int>());
@@ -494,8 +505,8 @@ namespace zlt::mylispc {
   }
   // bitwise operations end
 
-  void optimize(UNode &dest, bool global, LengthOper &src) {
-    optimize(global, src.item);
+  void optimize(UNode &dest, LengthOper &src) {
+    optimize(src.item);
     if (Dynamicastable<CharAtom> {}(*src.item)) {
       dest = number(1, src.start);
     } else if (auto a = dynamic_cast<StringAtom *>(src.item.get()); a) {
@@ -503,22 +514,22 @@ namespace zlt::mylispc {
     }
   }
 
-  void optimize(UNode &dest, bool global, NegativeOper &src) {
-    optimize(global, src.item);
+  void optimize(UNode &dest, NegativeOper &src) {
+    optimize(src.item);
     if (double d; isNumConst(d, src.item)) {
       dest = number(-d, src.start);
     }
   }
 
-  void optimize(UNode &dest, bool global, PositiveOper &src) {
-    optimize(global, src.item);
+  void optimize(UNode &dest, PositiveOper &src) {
+    optimize(src.item);
     if (double d; isNumConst(d, src.item)) {
       dest = number(d, src.start);
     }
   }
 
-  void optimize(UNode &dest, bool global, SequenceOper &src) {
-    optimize(global, src.items.begin(), src.items.end());
+  void optimize(UNode &dest, SequenceOper &src) {
+    optimize(src.items.begin(), src.items.end());
     UNodes a;
     optimizeBody(a, src.items.begin(), src.items.end());
     if (a.size() == 1) {

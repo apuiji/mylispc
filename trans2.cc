@@ -27,6 +27,9 @@ namespace zlt::mylispc {
   declTrans(Forward);
   declTrans(Function1);
   declTrans(GetRef);
+  declTrans(GlobalForward);
+  declTrans(GlobalReturn);
+  declTrans(GlobalThrow);
   declTrans(If);
   declTrans(Return);
   declTrans(SetRef);
@@ -50,6 +53,9 @@ namespace zlt::mylispc {
     ifType(Forward);
     ifType(Function1);
     ifType(GetRef);
+    ifType(GlobalForward);
+    ifType(GlobalReturn);
+    ifType(GlobalThrow);
     ifType(If);
     ifType(Return);
     ifType(SetRef);
@@ -106,6 +112,19 @@ namespace zlt::mylispc {
       return highDefs.find(ref.name) != highDefs.end();
     }
     return false;
+  }
+
+  void trans(UNode &dest, const Defs &highDefs, GlobalForward &src) {
+    trans(highDefs, src.callee);
+    trans(highDefs, src.args.begin(), src.args.end());
+  }
+
+  void trans(UNode &dest, const Defs &highDefs, GlobalReturn &src) {
+    trans(highDefs, src.value);
+  }
+
+  void trans(UNode &dest, const Defs &highDefs, GlobalThrow &src) {
+    trans(highDefs, src.value);
   }
 
   void trans(UNode &dest, const Defs &highDefs, If &src) {
