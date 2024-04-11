@@ -11,10 +11,15 @@ namespace zlt::mylisp {
     Value *sp;
     Value *tdsp;
     const char *pc;
+    bool alive;
     struct {
       Value *data;
       size_t size;
     } valuek;
+    struct {
+      char *data;
+      size_t size;
+    } ctrlk;
   };
 
   using Coroutines = std::list<Coroutine>;

@@ -219,6 +219,7 @@ namespace zlt::mylispc {
     compile(body, src.body.begin(), src.body.end());
     auto it = mylisp::bodies.insert(std::move(body)).first;
     dest.put(opcode::MAKE_FN);
+    write(dest, src.paramn);
     write(dest, &*it);
     if (src.closureDefs.empty()) {
       return;
@@ -288,7 +289,7 @@ namespace zlt::mylispc {
   }
 
   void compile(ostream &dest, const MakeHighRef &src) {
-    dest.put(opcode::MAKE_HI_REF);
+    dest.put(opcode::MAKE_HIGH_REF);
   }
 
   void compile(ostream &dest, const Null &src) {
@@ -332,15 +333,16 @@ namespace zlt::mylispc {
 
   void compile(ostream &dest, const Throw &src) {
     compile(dest, src.value);
-    dest.put(opcode::CLEAN_TRY_DEFERS);
     dest.put(opcode::THROW);
   }
 
   void compile(ostream &dest, const Try &src) {
-    dest.put(opcode::START_TRY);
     compileCalling(dest, src);
+    dest.put(opcode::PUSH_TRY);
     dest.put(opcode::CALL);
     write(dest, src.args.size());
+    dest.put(opcode::NULL_LITERAL);
+    dest.put(opcode::THROW);
   }
 
   void compile(ostream &dest, const Yield &src) {
@@ -351,7 +353,7 @@ namespace zlt::mylispc {
   // arithmetical operations begin
   static void arithMultiOper(ostream &dest, int opcode, It it, It end) {
     compile(dest, *it);
-    if (!Dynamicastable<Number> {}(*it)) {
+    if (!Dynamicastable<Number> {}(**it)) {
       dest.put(opcode::POSITIVE);
     }
     ++it;
@@ -363,7 +365,7 @@ namespace zlt::mylispc {
   }
 
   void compile(ostream &dest, const ArithAddOper &src) {
-    multiOper(dest, opcode::ADD, src.items.begin(), src.items.end());
+    arithMultiOper(dest, opcode::ADD, src.items.begin(), src.items.end());
   }
 
   void compile(ostream &dest, const ArithSubOper &src) {

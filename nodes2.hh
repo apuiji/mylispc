@@ -27,11 +27,12 @@ namespace zlt::mylispc {
   struct Function1 final: Node {
     using Defs = Function::Defs;
     using ClosureDefs = std::map<const std::string *, Reference>;
+    size_t paramn;
     Defs highDefs;
     ClosureDefs closureDefs;
     UNodes body;
-    Function1(const char *start, Defs &&highDefs, ClosureDefs &&closureDefs, UNodes &&body) noexcept:
-    Node(start), highDefs(std::move(highDefs)), closureDefs(std::move(closureDefs)), body(std::move(body)) {}
+    Function1(const char *start, size_t paramn, Defs &&highDefs, ClosureDefs &&closureDefs, UNodes &&body) noexcept:
+    Node(start), paramn(paramn), highDefs(std::move(highDefs)), closureDefs(std::move(closureDefs)), body(std::move(body)) {}
   };
 
   struct GetHighRef final: Node {
