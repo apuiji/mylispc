@@ -51,7 +51,6 @@ namespace zlt::mylisp::opcode {
     PUSH_TRY,
     RETURN,
     RSH,
-    SET_CLOSURE,
     SET_FN_CLOSURE,
     SET_GLOBAL,
     SET_HIGH_REF,

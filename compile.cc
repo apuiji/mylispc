@@ -316,9 +316,7 @@ namespace zlt::mylispc {
 
   void compile(ostream &dest, const SetRef &src) {
     compile(dest, src.value);
-    if (src.ref.scope == Reference::CLOSURE_SCOPE) {
-      dest.put(opcode::SET_CLOSURE);
-    } else if (src.ref.scope == Reference::GLOBAL_SCOPE) {
+    if (src.ref.scope == Reference::GLOBAL_SCOPE) {
       dest.put(opcode::SET_GLOBAL);
     } else {
       dest.put(opcode::SET_LOCAL);
