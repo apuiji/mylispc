@@ -2,13 +2,9 @@
 
 #include<list>
 #include<set>
-#include<string>
+#include"value.hh"
 
 namespace zlt::mylisp {
-  struct Object;
-
-  using Value = std::variant<std::monostate, double, char, const std::string *, Object *, void (*)(void *, void *)>;
-
   struct Coroutine {
     Value ax;
     Value *bp;

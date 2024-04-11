@@ -9,6 +9,21 @@ namespace zlt::mylispc {
   using Defs = set<const string *>;
   using It = UNodes::iterator;
 
+  static void trans(bool global, Defs &defs, UNode &src);
+
+  static inline void trans(bool global, Defs &defs, It it, It end) {
+    for (; it != end; ++it) {
+      trans(global, defs, *it);
+    }
+  }
+
+  void trans(UNodes &src) {
+    Defs _;
+    trans(true, _, src.begin(), src.end());
+    src.push_back({});
+    src.back().reset(new GlobalReturn(nullptr, nvll()));
+  }
+
   static void transList(UNode &dest, bool global, Defs &defs, const char *start, It it, It end);
 
   void trans(bool global, Defs &defs, UNode &src) {

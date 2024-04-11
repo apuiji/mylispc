@@ -184,7 +184,7 @@ namespace zlt::mylispc {
   void compile(ostream &dest, const Call &src) {
     compileCalling(dest, src);
     dest.put(opcode::CALL);
-    write(dest, src.args.size() + 1);
+    write(dest, src.args.size());
   }
 
   void compile(ostream &dest, const Callee &src) {
@@ -209,7 +209,7 @@ namespace zlt::mylispc {
     compileCalling(dest, src);
     dest.put(opcode::CLEAN_FN_DEFERS);
     dest.put(opcode::FORWARD);
-    write(dest, src.args.size() + 1);
+    write(dest, src.args.size());
   }
 
   static void getRef(ostream &dest, const Reference &src);
@@ -256,7 +256,7 @@ namespace zlt::mylispc {
     compileCalling(dest, src);
     dest.put(opcode::CLEAN_ALL_DEFERS);
     dest.put(opcode::GLOBAL_FORWARD);
-    write(dest, src.args.size() + 1);
+    write(dest, src.args.size());
   }
 
   void compile(ostream &dest, const GlobalReturn &src) {
@@ -340,7 +340,7 @@ namespace zlt::mylispc {
     dest.put(opcode::START_TRY);
     compileCalling(dest, src);
     dest.put(opcode::CALL);
-    write(dest, src.args.size() + 1);
+    write(dest, src.args.size());
   }
 
   void compile(ostream &dest, const Yield &src) {
@@ -349,14 +349,11 @@ namespace zlt::mylispc {
   }
 
   // arithmetical operations begin
-  static void multiOper(ostream &dest, int opcode, It it, It end);
-
-  void compile(ostream &dest, const ArithAddOper &src) {
-    multiOper(dest, opcode::ADD, src.items.begin(), src.items.end());
-  }
-
-  void multiOper(ostream &dest, int opcode, It it, It end) {
+  static void arithMultiOper(ostream &dest, int opcode, It it, It end) {
     compile(dest, *it);
+    if (!Dynamicastable<Number> {}(*it)) {
+      dest.put(opcode::POSITIVE);
+    }
     ++it;
     do {
       dest.put(opcode::PUSH);
@@ -365,24 +362,28 @@ namespace zlt::mylispc {
     } while (++it != end);
   }
 
+  void compile(ostream &dest, const ArithAddOper &src) {
+    multiOper(dest, opcode::ADD, src.items.begin(), src.items.end());
+  }
+
   void compile(ostream &dest, const ArithSubOper &src) {
-    multiOper(dest, opcode::SUB, src.items.begin(), src.items.end());
+    arithMultiOper(dest, opcode::SUB, src.items.begin(), src.items.end());
   }
 
   void compile(ostream &dest, const ArithMulOper &src) {
-    multiOper(dest, opcode::MUL, src.items.begin(), src.items.end());
+    arithMultiOper(dest, opcode::MUL, src.items.begin(), src.items.end());
   }
 
   void compile(ostream &dest, const ArithDivOper &src) {
-    multiOper(dest, opcode::DIV, src.items.begin(), src.items.end());
+    arithMultiOper(dest, opcode::DIV, src.items.begin(), src.items.end());
   }
 
   void compile(ostream &dest, const ArithModOper &src) {
-    multiOper(dest, opcode::MOD, src.items.begin(), src.items.end());
+    arithMultiOper(dest, opcode::MOD, src.items.begin(), src.items.end());
   }
 
   void compile(ostream &dest, const ArithPowOper &src) {
-    multiOper(dest, opcode::POW, src.items.begin(), src.items.end());
+    arithMultiOper(dest, opcode::POW, src.items.begin(), src.items.end());
   }
   // arithmetical operations end
 
@@ -438,6 +439,16 @@ namespace zlt::mylispc {
     dest.put(opcode::LOGIC_NOT);
   }
 
+  static void multiOper(ostream &dest, int opcode, It it, It end) {
+    compile(dest, *it);
+    ++it;
+    do {
+      dest.put(opcode::PUSH);
+      compile(dest, *it);
+      dest.put(opcode);
+    } while (++it != end);
+  }
+
   void compile(ostream &dest, const LogicXorOper &src) {
     multiOper(dest, opcode::LOGIC_XOR, src.items.begin(), src.items.end());
   }
@@ -445,11 +456,11 @@ namespace zlt::mylispc {
 
   // bitwise operations begin
   void compile(ostream &dest, const BitwsAndOper &src) {
-    multiOper(dest, opcode::BIT_AND, src.items.begin(), src.items.end());
+    arithMultiOper(dest, opcode::BIT_AND, src.items.begin(), src.items.end());
   }
 
   void compile(ostream &dest, const BitwsOrOper &src) {
-    multiOper(dest, opcode::BIT_OR, src.items.begin(), src.items.end());
+    arithMultiOper(dest, opcode::BIT_OR, src.items.begin(), src.items.end());
   }
 
   void compile(ostream &dest, const BitwsNotOper &src) {
@@ -458,19 +469,19 @@ namespace zlt::mylispc {
   }
 
   void compile(ostream &dest, const BitwsXorOper &src) {
-    multiOper(dest, opcode::BIT_XOR, src.items.begin(), src.items.end());
+    arithMultiOper(dest, opcode::BIT_XOR, src.items.begin(), src.items.end());
   }
 
   void compile(ostream &dest, const LshOper &src) {
-    multiOper(dest, opcode::LSH, src.items.begin(), src.items.end());
+    arithMultiOper(dest, opcode::LSH, src.items.begin(), src.items.end());
   }
 
   void compile(ostream &dest, const RshOper &src) {
-    multiOper(dest, opcode::RSH, src.items.begin(), src.items.end());
+    arithMultiOper(dest, opcode::RSH, src.items.begin(), src.items.end());
   }
 
   void compile(ostream &dest, const UshOper &src) {
-    multiOper(dest, opcode::USH, src.items.begin(), src.items.end());
+    arithMultiOper(dest, opcode::USH, src.items.begin(), src.items.end());
   }
   // bitwise operations end
 

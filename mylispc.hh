@@ -64,14 +64,7 @@ namespace zlt::mylispc {
     }
   }
 
-  void trans(bool global, std::set<const std::string *> &defs, UNode &src);
-
-  static inline void trans(bool global, std::set<const std::string *> &defs, UNodes::iterator it, UNodes::iterator end) {
-    for (; it != end; ++it) {
-      trans(global, defs, *it);
-    }
-  }
-
+  void trans(UNodes &src);
   void optimize(UNode &src);
 
   template<myiter::IteratorOf<UNode> It>
