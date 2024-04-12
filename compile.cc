@@ -354,12 +354,12 @@ namespace zlt::mylispc {
     if (!Dynamicastable<Number> {}(**it)) {
       dest.put(opcode::POSITIVE);
     }
-    ++it;
-    do {
-      dest.put(opcode::PUSH);
+    dest.put(opcode::PUSH);
+    while (++it != end) {
       compile(dest, *it);
       dest.put(opcode);
-    } while (++it != end);
+    }
+    dest.put(opcode::POP);
   }
 
   void compile(ostream &dest, const ArithAddOper &src) {
@@ -441,12 +441,12 @@ namespace zlt::mylispc {
 
   static void multiOper(ostream &dest, int opcode, It it, It end) {
     compile(dest, *it);
-    ++it;
-    do {
-      dest.put(opcode::PUSH);
+    dest.put(opcode::PUSH);
+    while (++it != end) {
       compile(dest, *it);
       dest.put(opcode);
-    } while (++it != end);
+    }
+    dest.put(opcode::POP);
   }
 
   void compile(ostream &dest, const LogicXorOper &src) {
