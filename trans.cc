@@ -530,7 +530,7 @@ namespace zlt::mylispc {
 
   using ItParam = Function::Params::iterator;
 
-  static void cleanDupFnParams(ItParam it, ItParam end, const char *name) noexcept;
+  static void cleanDupFnParams(ItParam it, ItParam end, const string *name) noexcept;
 
   void transFnParams(Function::Params &dest, Defs &defs, It it, It end) {
     for (; it != end; ++it) {
@@ -550,7 +550,7 @@ namespace zlt::mylispc {
     }
   }
 
-  static void cleanDupFnParams(ItParam it, ItParam end, const char *name) noexcept {
+  static void cleanDupFnParams(ItParam it, ItParam end, const string *name) noexcept {
     do {
       *it = nullptr;
       it = find(++it, end, name);

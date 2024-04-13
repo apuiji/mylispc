@@ -210,7 +210,8 @@ namespace zlt::mylispc {
       write(body, defIndex(src.defs, name));
     }
     compile(body, src.defs, src.closureDefs, src.body.begin(), src.body.end());
-    auto it = mylisp::bodies.insert(std::move(body)).first;
+    auto it = mylisp::bodies.insert(body.str()).first;
+    remove(body);
     dest.put(opcode::MAKE_FN);
     write(dest, src.paramn);
     write(dest, src.defs.size());
@@ -221,7 +222,7 @@ namespace zlt::mylispc {
     }
     dest.put(opcode::PUSH);
     for (auto [name, ref] : src.closureDefs) {
-      getRef(dest, ref);
+      getRef(dest, defs, closureDefs, ref);
       dest.put(opcode::SET_FN_CLOSURE);
       write(dest, closureDefIndex(src.closureDefs, name));
     }
@@ -361,7 +362,7 @@ namespace zlt::mylispc {
 
   void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const Yield &src) {
     dest.put(opcode::YIELD);
-    compile(dest, src.then);
+    compile(dest, defs, closureDefs, src.then);
   }
 
   // arithmetical operations begin

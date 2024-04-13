@@ -7,7 +7,8 @@ windbg/%.o: %.cc ${HHS}
 	clang++ $< -c -g -I . -O2 -o $@ -std=c++2b -stdlib=libc++
 
 clean:
-	echo>windbg/libmylispc.a
-	del windbg/libmylispc.a windbg/*.o
+	echo>windbg\libmylispc.a
+	del windbg\*.o
+	del windbg\libmylispc.a 
 
 .PHONY: clean
