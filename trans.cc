@@ -528,10 +528,19 @@ namespace zlt::mylispc {
     dest.reset(new Function(start, std::move(defs1), std::move(params), std::move(body)));
   }
 
+  using ItParam = Function::Params::iterator;
+
+  static void cleanDupFnParams(ItParam it, ItParam end, const char *name) noexcept;
+
   void transFnParams(Function::Params &dest, Defs &defs, It it, It end) {
     for (; it != end; ++it) {
       if (auto a = dynamic_cast<const IDAtom *>(it->get()); a) {
-        defs.insert(a->name);
+        auto it1 = find(dest.begin(), dest.end(), a->name);
+        if (it1 == dest.end()) {
+          defs.insert(a->name);
+        } else {
+          cleanDupFnParams(it1, dest.end(), a->name);
+        }
         dest.push_back(a->name);
       } else if (auto a = dynamic_cast<const List *>(it->get()); a && a->items.empty()) {
         dest.push_back(nullptr);
@@ -539,6 +548,13 @@ namespace zlt::mylispc {
         throw Bad(bad::ILL_FN_PARAM, (**it).start);
       }
     }
+  }
+
+  static void cleanDupFnParams(ItParam it, ItParam end, const char *name) noexcept {
+    do {
+      *it = nullptr;
+      it = find(++it, end, name);
+    } while (it != end);
   }
 
   template<>

@@ -3,13 +3,13 @@
 using namespace std;
 
 namespace zlt::mylispc {
-  using Defs = Function::Defs;
+  using HighDefs = Function1::HighDefs;
   using It = UNodes::iterator;
 
-  static void trans(const Defs &highDefs, UNode &src);
+  static void trans(const HighDefs &highDefs, UNode &src);
 
   template<class It>
-  static inline void trans(const Defs &highDefs, It it, It end) {
+  static inline void trans(const HighDefs &highDefs, It it, It end) {
     for (; it != end; ++it) {
       trans(highDefs, *it);
     }
@@ -20,7 +20,7 @@ namespace zlt::mylispc {
   }
 
   #define declTrans(T) \
-  static void trans(UNode &dest, const Defs &highDefs, T &src)
+  static void trans(UNode &dest, const HighDefs &highDefs, T &src)
 
   declTrans(Call);
   declTrans(Defer);
@@ -41,7 +41,7 @@ namespace zlt::mylispc {
 
   #undef declTrans
 
-  void trans(const Defs &highDefs, UNode &src) {
+  void trans(const HighDefs &highDefs, UNode &src) {
     #define ifType(T) \
     if (auto a = dynamic_cast<T *>(src.get()); a) { \
       trans(src, highDefs, *a); \
@@ -67,31 +67,22 @@ namespace zlt::mylispc {
     #undef ifType
   }
 
-  void trans(UNode &dest, const Defs &highDefs, Call &src) {
+  void trans(UNode &dest, const HighDefs &highDefs, Call &src) {
     trans(highDefs, src.callee);
     trans(highDefs, src.args.begin(), src.args.end());
   }
 
-  void trans(UNode &dest, const Defs &highDefs, Defer &src) {
+  void trans(UNode &dest, const HighDefs &highDefs, Defer &src) {
     trans(highDefs, src.value);
   }
 
-  void trans(UNode &dest, const Defs &highDefs, Forward &src) {
+  void trans(UNode &dest, const HighDefs &highDefs, Forward &src) {
     trans(highDefs, src.callee);
     trans(highDefs, src.args.begin(), src.args.end());
   }
 
-  void trans(UNode &dest, const Defs &highDefs, Function1 &src) {
-    UNodes body;
-    for (auto name : src.highDefs) {
-      Reference ref(Reference::LOCAL_SCOPE, name);
-      UNode value(new MakeHighRef);
-      body.push_back({});
-      body.back().reset(new SetRef(nullptr, ref, std::move(value)));
-    }
+  void trans(UNode &dest, const HighDefs &highDefs, Function1 &src) {
     trans(src.highDefs, src.body.begin(), src.body.end());
-    body.insert(body.end(), move_iterator(src.body.begin()), move_iterator(src.body.end()));
-    src.body = std::move(body);
   }
 
   static bool isHighDef(const Defs &highDefs, const Reference &ref) noexcept;

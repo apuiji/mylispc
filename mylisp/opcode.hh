@@ -10,7 +10,6 @@ namespace zlt::mylisp::opcode {
     CALL,
     CHAR_LITERAL,
     CLEAN_ALL_DEFERS,
-    CLEAN_ARGS,
     CLEAN_FN_DEFERS,
     COMPARE,
     DIV,
@@ -36,7 +35,6 @@ namespace zlt::mylisp::opcode {
     LT,
     LTEQ,
     MAKE_FN,
-    MAKE_HIGH_REF,
     MOD,
     MUL,
     NEGATIVE,
@@ -59,6 +57,7 @@ namespace zlt::mylisp::opcode {
     SUB,
     THROW,
     USH,
+    WRAP_HIGH_REF,
     YIELD
   };
 }

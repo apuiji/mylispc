@@ -9,7 +9,7 @@ namespace zlt::mylispc {
   struct Scope {
     Scope *parent;
     const Defs &defs;
-    Defs highDefs;
+    Function1::HighDefs highDefs;
     Function1::ClosureDefs closureDefs;
     Scope(Scope *parent, const Defs &defs) noexcept: parent(parent), defs(defs) {}
   };
@@ -90,34 +90,22 @@ namespace zlt::mylispc {
     trans(scope, src.args.begin(), src.args.end());
   }
 
-  static void transParams(UNodes &dest, const string **params, size_t paramn);
-
   void trans(UNode &dest, Scope &scope, Function &src) {
-    auto &params = src.params;
-    Scope fs(&scope, src.defs);
-    UNodes body;
-    transParams(body, params.data(), params.size());
-    trans(fs, src.body.begin(), src.body.end());
-    body.insert(body.end(), move_iterator(src.body.begin()), move_iterator(src.body.end()));
-    dest.reset(new Function1(src.start, params.size(), std::move(fs.highDefs), std::move(fs.closureDefs), std::move(body)));
-  }
-
-  void transParams(UNodes &dest, const string **params, size_t paramn) {
-    if (!paramn) [[unlikely]] {
-      return;
-    }
-    for (int i = 0; i < paramn; ++i) {
-      auto param = params[i];
-      if (!param) {
-        continue;
+    Function1::Defs defs(src.params);
+    for (auto &def : src.defs) {
+      if (find(defs.begin(), defs.end(), def) == defs.end()) {
+        defs.push_back(def);
       }
-      Reference ref(Reference::LOCAL_SCOPE, param);
-      UNode value(new Argument(i));
-      dest.push_back({});
-      dest.back().reset(new SetRef(nullptr, ref, std::move(value)));
     }
-    dest.push_back({});
-    dest.back().reset(new CleanArgs);
+    Scope fs(&scope, src.defs);
+    trans(fs, src.body.begin(), src.body.end());
+    auto f = new Function1(src.start);
+    dest.reset(f);
+    f->paramn = src.params.size();
+    f->defs = std::move(defs);
+    f->highDefs = std::move(fs.highDefs);
+    f->closureDefs = std::move(fs.closureDefs);
+    f->body = std::move(src.body);
   }
 
   void trans(UNode &dest, Scope &scope, GlobalForward &src) {

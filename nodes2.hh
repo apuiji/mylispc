@@ -3,15 +3,6 @@
 #include"nodes1.hh"
 
 namespace zlt::mylispc {
-  struct Argument final: Node {
-    size_t index;
-    Argument(size_t index) noexcept: index(index) {}
-  };
-
-  struct CleanArgs final: Node {
-    CleanArgs() noexcept: Node() {}
-  };
-
   struct Reference {
     enum {
       CLOSURE_SCOPE,
@@ -25,14 +16,15 @@ namespace zlt::mylispc {
   };
 
   struct Function1 final: Node {
-    using Defs = Function::Defs;
+    using Defs = std::vector<const std::string *>;
+    using HighDefs = std::set<const std::string *>;
     using ClosureDefs = std::map<const std::string *, Reference>;
     size_t paramn;
-    Defs highDefs;
+    Defs defs;
+    HighDefs highDefs;
     ClosureDefs closureDefs;
     UNodes body;
-    Function1(const char *start, size_t paramn, Defs &&highDefs, ClosureDefs &&closureDefs, UNodes &&body) noexcept:
-    Node(start), paramn(paramn), highDefs(std::move(highDefs)), closureDefs(std::move(closureDefs)), body(std::move(body)) {}
+    using Node::Node;
   };
 
   struct GetHighRef final: Node {
@@ -43,10 +35,6 @@ namespace zlt::mylispc {
   struct GetRef final: Node {
     Reference ref;
     GetRef(const char *start, const Reference &ref) noexcept: Node(start), ref(ref) {}
-  };
-
-  struct MakeHighRef final: Node {
-    using Node::Node;
   };
 
   struct SetHighRef final: Node {
