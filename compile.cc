@@ -1,6 +1,7 @@
 #include<sstream>
 #include"mylisp/mylisp.hh"
 #include"mylisp/opcode.hh"
+#include"myutils/xyz.hh"
 #include"nodes2.hh"
 
 using namespace std;
@@ -204,19 +205,22 @@ namespace zlt::mylispc {
   static void getRef(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const Reference &src);
 
   void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const Function1 &src) {
-    stringstream body;
-    for (auto name : src.highDefs) {
-      body.put(opcode::WRAP_HIGH_REF);
-      write(body, defIndex(src.defs, name));
+    string body;
+    {
+      stringstream ss;
+      for (auto name : src.highDefs) {
+        ss.put(opcode::WRAP_HIGH_REF);
+        write(ss, defIndex(src.defs, name));
+      }
+      compile(ss, src.defs, src.closureDefs, src.body.begin(), src.body.end());
+      body = ss.str();
     }
-    compile(body, src.defs, src.closureDefs, src.body.begin(), src.body.end());
-    auto it = mylisp::bodies.insert(body.str()).first;
-    remove(body);
     dest.put(opcode::MAKE_FN);
     write(dest, src.paramn);
     write(dest, src.defs.size());
     write(dest, src.closureDefs.size());
-    write(dest, &*it);
+    write(dest, body.size());
+    dest << body;
     if (src.closureDefs.empty()) {
       return;
     }

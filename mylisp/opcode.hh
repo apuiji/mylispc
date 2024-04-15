@@ -15,7 +15,6 @@ namespace zlt::mylisp::opcode {
     DIV,
     EQ,
     FORWARD,
-    GET_ARG,
     GET_CALLEE,
     GET_CLOSURE,
     GET_GLOBAL,

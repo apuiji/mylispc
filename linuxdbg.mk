@@ -8,6 +8,7 @@ linuxdbg/%.o: %.cc ${HHS}
 
 clean:
 	touch linuxdbg/libmylispc.a
+	touch linuxdbg/a.o
 	rm linuxdbg/libmylispc.a linuxdbg/*.o
 
 .PHONY: clean
