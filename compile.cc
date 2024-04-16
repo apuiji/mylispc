@@ -195,6 +195,8 @@ namespace zlt::mylispc {
 
   void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const Forward &src) {
     compileCalling(dest, defs, closureDefs, src);
+    dest.put(opcode::PUSH_PC_JMP);
+    write(dest, 1);
     dest.put(opcode::CLEAN_FN_DEFERS);
     dest.put(opcode::FORWARD);
     write(dest, src.args.size());
@@ -279,6 +281,8 @@ namespace zlt::mylispc {
 
   void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const GlobalForward &src) {
     compileCalling(dest, defs, closureDefs, src);
+    dest.put(opcode::PUSH_PC_JMP);
+    write(dest, 1);
     dest.put(opcode::CLEAN_ALL_DEFERS);
     dest.put(opcode::GLOBAL_FORWARD);
     write(dest, src.args.size());
@@ -286,7 +290,11 @@ namespace zlt::mylispc {
 
   void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const GlobalReturn &src) {
     compile(dest, defs, closureDefs, src.value);
+    dest.put(opcode::PUSH_AX);
+    dest.put(opcode::PUSH_PC_JMP);
+    write(dest, 1);
     dest.put(opcode::CLEAN_ALL_DEFERS);
+    dest.put(opcode::POP_AX);
     dest.put(opcode::GLOBAL_RETURN);
   }
 
@@ -323,6 +331,8 @@ namespace zlt::mylispc {
 
   void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const Return &src) {
     compile(dest, defs, closureDefs, src.value);
+    dest.put(opcode::PUSH_PC_JMP);
+    write(dest, 1);
     dest.put(opcode::CLEAN_FN_DEFERS);
     dest.put(opcode::RETURN);
   }
@@ -358,6 +368,8 @@ namespace zlt::mylispc {
   void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const Try &src) {
     compileCalling(dest, defs, closureDefs, src);
     dest.put(opcode::PUSH_TRY);
+    dest.put(opcode::PUSH_PC_JMP);
+    write(dest, 3 + sizeof(size_t));
     dest.put(opcode::CALL);
     write(dest, src.args.size());
     dest.put(opcode::NULL_LITERAL);
