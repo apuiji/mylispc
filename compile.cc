@@ -28,6 +28,12 @@ namespace zlt::mylispc {
     }
   }
 
+  static inline void compile(string &dest, const Scope &scope, const UNode &src) {
+    stringstream ss;
+    compile(ss, scope, src);
+    dest = ss.str();
+  }
+
   template<class It>
   static inline void compile(string &dest, const Scope &scope, It it, It end) {
     stringstream ss;
@@ -233,6 +239,8 @@ namespace zlt::mylispc {
 
   static void compileFnBody(string &dest, const Scope &scope, const Function1 &src);
   static void getRef(ostream &dest, const Scope &scope, const Reference &src);
+  static size_t defIndex(const Scope &scope, const string *name) noexcept;
+  static size_t closureDefIndex(const Scope &scope, const string *name) noexcept;
 
   void compile(ostream &dest, const Scope &scope, const Function1 &src) {
     string body;
@@ -254,9 +262,6 @@ namespace zlt::mylispc {
     }
     dest.put(opcode::POP);
   }
-
-  static size_t defIndex(const Scope &scope, const string *name) noexcept;
-  static size_t closureDefIndex(const Scope &scope, const string *name) noexcept;
 
   void compileFnBody(string &dest, const Scope &scope, const Function1 &src) {
     stringstream ss;
@@ -313,7 +318,7 @@ namespace zlt::mylispc {
   }
 
   void compile(ostream &dest, const Scope &scope, const GlobalForward &src) {
-    compileCalling(dest, defs, closureDefs, src);
+    compileCalling(dest, scope, src);
     dest.put(opcode::GLOBAL_FORWARD);
     writeSize(dest, src.args.size());
     dest.put(opcode::PUSH_PC_JMP);
@@ -382,7 +387,7 @@ namespace zlt::mylispc {
       write(dest, src.ref.name);
     } else {
       dest.put(opcode::SET_LOCAL);
-      writeSize(dest, defIndex(defs, src.ref.name));
+      writeSize(dest, defIndex(scope, src.ref.name));
     }
   }
 
@@ -423,53 +428,53 @@ namespace zlt::mylispc {
     }
     dest.put(opcode::PUSH);
     while (++it != end) {
-      compile(dest, defs, closureDefs, *it);
+      compile(dest, scope, *it);
       dest.put(opcode);
     }
     dest.put(opcode::POP);
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const ArithAddOper &src) {
-    arithMultiOper(dest, defs, closureDefs, opcode::ADD, src.items.begin(), src.items.end());
+  void compile(ostream &dest, const Scope &scope, const ArithAddOper &src) {
+    arithMultiOper(dest, scope, opcode::ADD, src.items.begin(), src.items.end());
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const ArithSubOper &src) {
-    arithMultiOper(dest, defs, closureDefs, opcode::SUB, src.items.begin(), src.items.end());
+  void compile(ostream &dest, const Scope &scope, const ArithSubOper &src) {
+    arithMultiOper(dest, scope, opcode::SUB, src.items.begin(), src.items.end());
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const ArithMulOper &src) {
-    arithMultiOper(dest, defs, closureDefs, opcode::MUL, src.items.begin(), src.items.end());
+  void compile(ostream &dest, const Scope &scope, const ArithMulOper &src) {
+    arithMultiOper(dest, scope, opcode::MUL, src.items.begin(), src.items.end());
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const ArithDivOper &src) {
-    arithMultiOper(dest, defs, closureDefs, opcode::DIV, src.items.begin(), src.items.end());
+  void compile(ostream &dest, const Scope &scope, const ArithDivOper &src) {
+    arithMultiOper(dest, scope, opcode::DIV, src.items.begin(), src.items.end());
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const ArithModOper &src) {
-    arithMultiOper(dest, defs, closureDefs, opcode::MOD, src.items.begin(), src.items.end());
+  void compile(ostream &dest, const Scope &scope, const ArithModOper &src) {
+    arithMultiOper(dest, scope, opcode::MOD, src.items.begin(), src.items.end());
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const ArithPowOper &src) {
-    arithMultiOper(dest, defs, closureDefs, opcode::POW, src.items.begin(), src.items.end());
+  void compile(ostream &dest, const Scope &scope, const ArithPowOper &src) {
+    arithMultiOper(dest, scope, opcode::POW, src.items.begin(), src.items.end());
   }
   // arithmetical operations end
 
   // logical operations begin
-  static void logicAnd(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, It it, It end);
+  static void logicAnd(ostream &dest, const Scope &scope, It it, It end);
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const LogicAndOper &src) {
-    logicAnd(dest, defs, closureDefs, src.items.begin(), src.items.end());
+  void compile(ostream &dest, const Scope &scope, const LogicAndOper &src) {
+    logicAnd(dest, scope, src.items.begin(), src.items.end());
   }
 
-  void logicAnd(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, It it, It end) {
-    compile(dest, defs, closureDefs, *it);
+  void logicAnd(ostream &dest, const Scope &scope, It it, It end) {
+    compile(dest, scope, *it);
     if (++it == end) [[unlikely]] {
       return;
     }
     string s;
     {
       stringstream ss;
-      logicAnd(ss, defs, closureDefs, it, end);
+      logicAnd(ss, scope, it, end);
       s = ss.str();
     }
     dest.put(opcode::JIF);
@@ -479,21 +484,21 @@ namespace zlt::mylispc {
     dest << s;
   }
 
-  static void logicOr(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, It it, It end);
+  static void logicOr(ostream &dest, const Scope &scope, It it, It end);
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const LogicOrOper &src) {
-    logicOr(dest, defs, closureDefs, src.items.begin(), src.items.end());
+  void compile(ostream &dest, const Scope &scope, const LogicOrOper &src) {
+    logicOr(dest, scope, src.items.begin(), src.items.end());
   }
 
-  void logicOr(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, It it, It end) {
-    compile(dest, defs, closureDefs, *it);
+  void logicOr(ostream &dest, const Scope &scope, It it, It end) {
+    compile(dest, scope, *it);
     if (++it == end) [[unlikely]] {
       return;
     }
     string s;
     {
       stringstream ss;
-      logicOr(ss, defs, closureDefs, it, end);
+      logicOr(ss, scope, it, end);
       s = ss.str();
     }
     dest.put(opcode::JIF);
@@ -501,130 +506,130 @@ namespace zlt::mylispc {
     dest << s;
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const LogicNotOper &src) {
-    compile(dest, defs, closureDefs, src.item);
+  void compile(ostream &dest, const Scope &scope, const LogicNotOper &src) {
+    compile(dest, scope, src.item);
     dest.put(opcode::LOGIC_NOT);
   }
 
-  static void multiOper(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, int opcode, It it, It end) {
-    compile(dest, defs, closureDefs, *it);
+  static void multiOper(ostream &dest, const Scope &scope, int opcode, It it, It end) {
+    compile(dest, scope, *it);
     dest.put(opcode::PUSH);
     while (++it != end) {
-      compile(dest, defs, closureDefs, *it);
+      compile(dest, scope, *it);
       dest.put(opcode);
     }
     dest.put(opcode::POP);
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const LogicXorOper &src) {
-    multiOper(dest, defs, closureDefs, opcode::LOGIC_XOR, src.items.begin(), src.items.end());
+  void compile(ostream &dest, const Scope &scope, const LogicXorOper &src) {
+    multiOper(dest, scope, opcode::LOGIC_XOR, src.items.begin(), src.items.end());
   }
   // logical operations end
 
   // bitwise operations begin
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const BitwsAndOper &src) {
-    arithMultiOper(dest, defs, closureDefs, opcode::BIT_AND, src.items.begin(), src.items.end());
+  void compile(ostream &dest, const Scope &scope, const BitwsAndOper &src) {
+    arithMultiOper(dest, scope, opcode::BIT_AND, src.items.begin(), src.items.end());
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const BitwsOrOper &src) {
-    arithMultiOper(dest, defs, closureDefs, opcode::BIT_OR, src.items.begin(), src.items.end());
+  void compile(ostream &dest, const Scope &scope, const BitwsOrOper &src) {
+    arithMultiOper(dest, scope, opcode::BIT_OR, src.items.begin(), src.items.end());
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const BitwsNotOper &src) {
-    compile(dest, defs, closureDefs, src.item);
+  void compile(ostream &dest, const Scope &scope, const BitwsNotOper &src) {
+    compile(dest, scope, src.item);
     dest.put(opcode::BIT_NOT);
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const BitwsXorOper &src) {
-    arithMultiOper(dest, defs, closureDefs, opcode::BIT_XOR, src.items.begin(), src.items.end());
+  void compile(ostream &dest, const Scope &scope, const BitwsXorOper &src) {
+    arithMultiOper(dest, scope, opcode::BIT_XOR, src.items.begin(), src.items.end());
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const LshOper &src) {
-    arithMultiOper(dest, defs, closureDefs, opcode::LSH, src.items.begin(), src.items.end());
+  void compile(ostream &dest, const Scope &scope, const LshOper &src) {
+    arithMultiOper(dest, scope, opcode::LSH, src.items.begin(), src.items.end());
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const RshOper &src) {
-    arithMultiOper(dest, defs, closureDefs, opcode::RSH, src.items.begin(), src.items.end());
+  void compile(ostream &dest, const Scope &scope, const RshOper &src) {
+    arithMultiOper(dest, scope, opcode::RSH, src.items.begin(), src.items.end());
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const UshOper &src) {
-    arithMultiOper(dest, defs, closureDefs, opcode::USH, src.items.begin(), src.items.end());
+  void compile(ostream &dest, const Scope &scope, const UshOper &src) {
+    arithMultiOper(dest, scope, opcode::USH, src.items.begin(), src.items.end());
   }
   // bitwise operations end
 
   // compare operations begin
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const CmpEqOper &src) {
-    compile(dest, defs, closureDefs, src.items[0]);
+  void compile(ostream &dest, const Scope &scope, const CmpEqOper &src) {
+    compile(dest, scope, src.items[0]);
     dest.put(opcode::PUSH);
-    compile(dest, defs, closureDefs, src.items[1]);
+    compile(dest, scope, src.items[1]);
     dest.put(opcode::EQ);
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const CmpLtOper &src) {
-    compile(dest, defs, closureDefs, src.items[0]);
+  void compile(ostream &dest, const Scope &scope, const CmpLtOper &src) {
+    compile(dest, scope, src.items[0]);
     dest.put(opcode::PUSH);
-    compile(dest, defs, closureDefs, src.items[1]);
+    compile(dest, scope, src.items[1]);
     dest.put(opcode::LT);
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const CmpGtOper &src) {
-    compile(dest, defs, closureDefs, src.items[0]);
+  void compile(ostream &dest, const Scope &scope, const CmpGtOper &src) {
+    compile(dest, scope, src.items[0]);
     dest.put(opcode::PUSH);
-    compile(dest, defs, closureDefs, src.items[1]);
+    compile(dest, scope, src.items[1]);
     dest.put(opcode::GT);
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const CmpLteqOper &src) {
-    compile(dest, defs, closureDefs, src.items[0]);
+  void compile(ostream &dest, const Scope &scope, const CmpLteqOper &src) {
+    compile(dest, scope, src.items[0]);
     dest.put(opcode::PUSH);
-    compile(dest, defs, closureDefs, src.items[1]);
+    compile(dest, scope, src.items[1]);
     dest.put(opcode::LTEQ);
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const CmpGteqOper &src) {
-    compile(dest, defs, closureDefs, src.items[0]);
+  void compile(ostream &dest, const Scope &scope, const CmpGteqOper &src) {
+    compile(dest, scope, src.items[0]);
     dest.put(opcode::PUSH);
-    compile(dest, defs, closureDefs, src.items[1]);
+    compile(dest, scope, src.items[1]);
     dest.put(opcode::GTEQ);
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const CompareOper &src) {
-    compile(dest, defs, closureDefs, src.items[0]);
+  void compile(ostream &dest, const Scope &scope, const CompareOper &src) {
+    compile(dest, scope, src.items[0]);
     dest.put(opcode::PUSH);
-    compile(dest, defs, closureDefs, src.items[1]);
+    compile(dest, scope, src.items[1]);
     dest.put(opcode::COMPARE);
   }
   // compare operations end
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const GetMembOper &src) {
-    multiOper(dest, defs, closureDefs, opcode::GET_MEMB, src.items.begin(), src.items.end());
+  void compile(ostream &dest, const Scope &scope, const GetMembOper &src) {
+    multiOper(dest, scope, opcode::GET_MEMB, src.items.begin(), src.items.end());
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const LengthOper &src) {
-    compile(dest, defs, closureDefs, src.item);
+  void compile(ostream &dest, const Scope &scope, const LengthOper &src) {
+    compile(dest, scope, src.item);
     dest.put(opcode::LENGTH);
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const NegativeOper &src) {
-    compile(dest, defs, closureDefs, src.item);
+  void compile(ostream &dest, const Scope &scope, const NegativeOper &src) {
+    compile(dest, scope, src.item);
     dest.put(opcode::NEGATIVE);
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const PositiveOper &src) {
-    compile(dest, defs, closureDefs, src.item);
+  void compile(ostream &dest, const Scope &scope, const PositiveOper &src) {
+    compile(dest, scope, src.item);
     dest.put(opcode::POSITIVE);
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const SequenceOper &src) {
-    compile(dest, defs, closureDefs, src.items.begin(), src.items.end());
+  void compile(ostream &dest, const Scope &scope, const SequenceOper &src) {
+    compile(dest, scope, src.items.begin(), src.items.end());
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const SetMembOper &src) {
-    compile(dest, defs, closureDefs, src.items[0]);
+  void compile(ostream &dest, const Scope &scope, const SetMembOper &src) {
+    compile(dest, scope, src.items[0]);
     dest.put(opcode::PUSH);
-    compile(dest, defs, closureDefs, src.items[1]);
+    compile(dest, scope, src.items[1]);
     dest.put(opcode::PUSH);
-    compile(dest, defs, closureDefs, src.items[2]);
+    compile(dest, scope, src.items[2]);
     dest.put(opcode::SET_MEMB);
   }
   // operations end
