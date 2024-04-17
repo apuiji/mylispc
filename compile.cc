@@ -208,6 +208,8 @@ namespace zlt::mylispc {
     writeSize(dest, 1 + sizeof(size_t));
     dest.put(opcode::CALL);
     writeSize(dest, src.args.size());
+    dest.put(opcode::POP_SP);
+    dest.put(opcode::POP_BP);
   }
 
   void compile(ostream &dest, const Scope &scope, const Callee &src) {
@@ -229,12 +231,17 @@ namespace zlt::mylispc {
     dest.put(opcode::FORWARD);
     writeSize(dest, src.args.size());
     if (scope.hasDefer) {
+      dest.put(opcode::PUSH_BP);
+      dest.put(opcode::PUSH_SP_BACK);
+      writeSize(dest, 0);
       dest.put(opcode::PUSH_PC_JMP);
       writeSize(dest, 1);
       dest.put(opcode::CLEAN_FN_DEFERS);
+      dest.put(opcode::POP_SP);
+      dest.put(opcode::POP_BP);
     }
     dest.put(opcode::CALL);
-    write(dest, src.args.size());
+    writeSize(dest, src.args.size());
   }
 
   static void compileFnBody(string &dest, const Scope &scope, const Function1 &src);
@@ -321,18 +328,28 @@ namespace zlt::mylispc {
     compileCalling(dest, scope, src);
     dest.put(opcode::GLOBAL_FORWARD);
     writeSize(dest, src.args.size());
+    dest.put(opcode::PUSH_BP);
+    dest.put(opcode::PUSH_SP_BACK);
+    writeSize(dest, 0);
     dest.put(opcode::PUSH_PC_JMP);
     writeSize(dest, 1);
     dest.put(opcode::CLEAN_ALL_DEFERS);
+    dest.put(opcode::POP_SP);
+    dest.put(opcode::POP_BP);
     dest.put(opcode::CALL);
     writeSize(dest, src.args.size());
   }
 
   void compile(ostream &dest, const Scope &scope, const GlobalReturn &src) {
     compile(dest, scope, src.value);
+    dest.put(opcode::PUSH_BP);
+    dest.put(opcode::PUSH_SP_BACK);
+    writeSize(dest, 0);
     dest.put(opcode::PUSH_PC_JMP);
     writeSize(dest, 1);
     dest.put(opcode::CLEAN_ALL_DEFERS);
+    dest.put(opcode::POP_SP);
+    dest.put(opcode::POP_BP);
     dest.put(opcode::END);
   }
 
@@ -361,13 +378,18 @@ namespace zlt::mylispc {
 
   void compile(ostream &dest, const Scope &scope, const Return &src) {
     compile(dest, scope, src.value);
-    dest.put(opcode::POP_BP);
     dest.put(opcode::POP_SP);
+    dest.put(opcode::POP_BP);
     if (scope.hasDefer) {
       dest.put(opcode::PUSH);
+      dest.put(opcode::PUSH_BP);
+      dest.put(opcode::PUSH_SP_BACK);
+      writeSize(dest, 0);
       dest.put(opcode::PUSH_PC_JMP);
       writeSize(dest, 1);
       dest.put(opcode::CLEAN_FN_DEFERS);
+      dest.put(opcode::POP_SP);
+      dest.put(opcode::POP_BP);
       dest.put(opcode::POP);
     }
     dest.put(opcode::POP_PC);
@@ -406,13 +428,15 @@ namespace zlt::mylispc {
     dest.put(opcode::PUSH_BP);
     dest.put(opcode::PUSH_SP_BACK);
     writeSize(dest, src.args.size() + 1);
-    dest.put(opcode::PUSH_TRY);
+    dest.put(opcode::PUSH_CATCH);
     dest.put(opcode::PUSH_PC_JMP);
-    write(dest, 3 + sizeof(size_t));
+    writeSize(dest, 3 + sizeof(size_t));
     dest.put(opcode::CALL);
-    write(dest, src.args.size());
+    writeSize(dest, src.args.size());
     dest.put(opcode::NULL_LITERAL);
     dest.put(opcode::THROW);
+    dest.put(opcode::POP_SP);
+    dest.put(opcode::POP_BP);
   }
 
   void compile(ostream &dest, const Scope &scope, const Yield &src) {
@@ -478,9 +502,9 @@ namespace zlt::mylispc {
       s = ss.str();
     }
     dest.put(opcode::JIF);
-    write(dest, 1 + sizeof(size_t));
+    writeSize(dest, 1 + sizeof(size_t));
     dest.put(opcode::JMP);
-    write(dest, s.size());
+    writeSize(dest, s.size());
     dest << s;
   }
 
@@ -502,7 +526,7 @@ namespace zlt::mylispc {
       s = ss.str();
     }
     dest.put(opcode::JIF);
-    write(dest, s.size());
+    writeSize(dest, s.size());
     dest << s;
   }
 
