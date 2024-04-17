@@ -9,27 +9,43 @@ using namespace std;
 namespace zlt::mylispc {
   namespace opcode = mylisp::opcode;
 
-  using Defs = Function1::Defs;
-  using ClosureDefs = Function1::ClosureDefs;
+  struct Scope {
+    const Function1::Defs &defs;
+    const Function1::ClosureDefs &closureDefs;
+    bool hasDefer;
+    Scope(const Function1::Defs &defs, const Function1::ClosureDefs &closureDefs, bool hasDefer) noexcept:
+    defs(defs), closureDefs(closureDefs), hasDefer(hasDefer) {}
+  };
+
   using It = UNodes::const_iterator;
 
-  static void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const UNode &src);
+  static void compile(ostream &dest, const Scope &scope, const UNode &src);
 
   template<class It>
-  static inline void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, It it, It end) {
+  static inline void compile(ostream &dest, const Scope &scope, It it, It end) {
     for (; it != end; ++it) {
-      compile(dest, defs, closureDefs, *it);
+      compile(dest, scope, *it);
     }
   }
 
-  void compile(string &dest, It it, It end) {
+  template<class It>
+  static inline void compile(string &dest, const Scope &scope, It it, It end) {
     stringstream ss;
-    compile(ss, Defs(), ClosureDefs(), it, end);
+    compile(ss, scope, it, end);
+    dest = ss.str();
+  }
+
+  void compile(string &dest, It it, It end) {
+    Function1::Defs _;
+    Function1::ClosureDefs _1;
+    Scope scope(_, _1, false);
+    stringstream ss;
+    compile(ss, scope, it, end);
     dest = ss.str();
   }
 
   #define declCompile(T) \
-  static void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const T &src)
+  static void compile(ostream &dest, const Scope &scope, const T &src)
 
   declCompile(Call);
   declCompile(Callee);
@@ -92,10 +108,10 @@ namespace zlt::mylispc {
 
   #undef declCompile
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const UNode &src) {
+  void compile(ostream &dest, const Scope &scope, const UNode &src) {
     #define ifType(T) \
     if (auto a = dynamic_cast<const T *>(src.get()); a) { \
-      compile(dest, defs, closureDefs, *a); \
+      compile(dest, scope, *a); \
       return; \
     }
     ifType(Call);
@@ -164,80 +180,97 @@ namespace zlt::mylispc {
     dest.write((const char *) &src, sizeof(T));
   }
 
-  static void compileCalling(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const Calling &src) {
-    compile(dest, defs, closureDefs, src.callee);
+  static inline void writeSize(ostream &dest, size_t n) {
+    write(dest, n);
+  }
+
+  static void compileCalling(ostream &dest, const Scope &scope, const Calling &src) {
+    compile(dest, scope, src.callee);
     dest.put(opcode::PUSH);
     for (auto &a : src.args) {
-      compile(dest, defs, closureDefs, a);
+      compile(dest, scope, a);
       dest.put(opcode::PUSH);
     }
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const Call &src) {
-    compileCalling(dest, defs, closureDefs, src);
+  void compile(ostream &dest, const Scope &scope, const Call &src) {
+    compileCalling(dest, scope, src);
+    dest.put(opcode::PUSH_BP);
+    dest.put(opcode::PUSH_SP_BACK);
+    writeSize(dest, src.args.size() + 1);
+    dest.put(opcode::PUSH_PC_JMP);
+    writeSize(dest, 1 + sizeof(size_t));
     dest.put(opcode::CALL);
-    write(dest, src.args.size());
+    writeSize(dest, src.args.size());
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const Callee &src) {
+  void compile(ostream &dest, const Scope &scope, const Callee &src) {
     dest.put(opcode::GET_CALLEE);
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const CharAtom &src) {
+  void compile(ostream &dest, const Scope &scope, const CharAtom &src) {
     dest.put(opcode::CHAR_LITERAL);
     dest.put(src.value);
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const Defer &src) {
-    compile(dest, defs, closureDefs, src.value);
+  void compile(ostream &dest, const Scope &scope, const Defer &src) {
+    compile(dest, scope, src.value);
     dest.put(opcode::PUSH_DEFER);
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const Forward &src) {
-    compileCalling(dest, defs, closureDefs, src);
-    dest.put(opcode::PUSH_PC_JMP);
-    write(dest, 1);
-    dest.put(opcode::CLEAN_FN_DEFERS);
+  void compile(ostream &dest, const Scope &scope, const Forward &src) {
+    compileCalling(dest, scope, src);
     dest.put(opcode::FORWARD);
+    writeSize(dest, src.args.size());
+    if (scope.hasDefer) {
+      dest.put(opcode::PUSH_PC_JMP);
+      writeSize(dest, 1);
+      dest.put(opcode::CLEAN_FN_DEFERS);
+    }
+    dest.put(opcode::CALL);
     write(dest, src.args.size());
   }
 
-  static size_t defIndex(const Defs &defs, const string *name) noexcept;
-  static size_t closureDefIndex(const ClosureDefs &closureDefs, const string *name) noexcept;
-  static void getRef(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const Reference &src);
+  static void compileFnBody(string &dest, const Scope &scope, const Function1 &src);
+  static void getRef(ostream &dest, const Scope &scope, const Reference &src);
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const Function1 &src) {
+  void compile(ostream &dest, const Scope &scope, const Function1 &src) {
     string body;
-    {
-      stringstream ss;
-      for (auto name : src.highDefs) {
-        ss.put(opcode::WRAP_HIGH_REF);
-        write(ss, defIndex(src.defs, name));
-      }
-      compile(ss, src.defs, src.closureDefs, src.body.begin(), src.body.end());
-      body = ss.str();
-    }
+    compileFnBody(body, scope, src);
     dest.put(opcode::MAKE_FN);
-    write(dest, src.paramn);
-    write(dest, src.defs.size());
-    write(dest, src.closureDefs.size());
-    write(dest, body.size());
+    writeSize(dest, src.paramn);
+    writeSize(dest, src.defs.size());
+    writeSize(dest, src.closureDefs.size());
+    writeSize(dest, body.size());
     dest << body;
     if (src.closureDefs.empty()) {
       return;
     }
     dest.put(opcode::PUSH);
     for (auto [name, ref] : src.closureDefs) {
-      getRef(dest, defs, closureDefs, ref);
+      getRef(dest, scope, ref);
       dest.put(opcode::SET_FN_CLOSURE);
-      write(dest, closureDefIndex(src.closureDefs, name));
+      writeSize(dest, closureDefIndex(scope, name));
     }
     dest.put(opcode::POP);
   }
 
-  size_t defIndex(const Defs &defs, const string *name) noexcept {
+  static size_t defIndex(const Scope &scope, const string *name) noexcept;
+  static size_t closureDefIndex(const Scope &scope, const string *name) noexcept;
+
+  void compileFnBody(string &dest, const Scope &scope, const Function1 &src) {
+    stringstream ss;
+    for (auto name : src.highDefs) {
+      ss.put(opcode::WRAP_HIGH_REF);
+      writeSize(ss, defIndex(scope, name));
+    }
+    compile(ss, scope, src.body.begin(), src.body.end());
+    dest = ss.str();
+  }
+
+  size_t defIndex(const Scope &scope, const string *name) noexcept {
     size_t i = 0;
-    for (auto def : defs) {
+    for (auto def : scope.defs) {
       if (name == def) {
         break;
       }
@@ -246,9 +279,9 @@ namespace zlt::mylispc {
     return i;
   }
 
-  size_t closureDefIndex(const ClosureDefs &closureDefs, const string *name) noexcept {
+  size_t closureDefIndex(const Scope &scope, const string *name) noexcept {
     size_t i = 0;
-    for (auto &p : closureDefs) {
+    for (auto &p : scope.closureDefs) {
       if (name == p.first) {
         break;
       }
@@ -257,116 +290,117 @@ namespace zlt::mylispc {
     return i;
   }
 
-  void getRef(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const Reference &src) {
+  void getRef(ostream &dest, const Scope &scope, const Reference &src) {
     if (src.scope == Reference::CLOSURE_SCOPE) {
       dest.put(opcode::GET_CLOSURE);
-      write(dest, closureDefIndex(closureDefs, src.name));
+      writeSize(dest, closureDefIndex(scope, src.name));
     } else if (src.scope == Reference::GLOBAL_SCOPE) {
       dest.put(opcode::GET_GLOBAL);
       write(dest, src.name);
     } else {
       dest.put(opcode::GET_LOCAL);
-      write(dest, defIndex(defs, src.name));
+      writeSize(dest, defIndex(scope, src.name));
     }
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const GetHighRef &src) {
-    getRef(dest, defs, closureDefs, src.ref);
+  void compile(ostream &dest, const Scope &scope, const GetHighRef &src) {
+    getRef(dest, scope, src.ref);
     dest.put(opcode::GET_HIGH_REF);
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const GetRef &src) {
-    getRef(dest, defs, closureDefs, src.ref);
+  void compile(ostream &dest, const Scope &scope, const GetRef &src) {
+    getRef(dest, scope, src.ref);
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const GlobalForward &src) {
+  void compile(ostream &dest, const Scope &scope, const GlobalForward &src) {
     compileCalling(dest, defs, closureDefs, src);
-    dest.put(opcode::PUSH_PC_JMP);
-    write(dest, 1);
-    dest.put(opcode::CLEAN_ALL_DEFERS);
     dest.put(opcode::GLOBAL_FORWARD);
-    write(dest, src.args.size());
-  }
-
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const GlobalReturn &src) {
-    compile(dest, defs, closureDefs, src.value);
-    dest.put(opcode::PUSH_AX);
+    writeSize(dest, src.args.size());
     dest.put(opcode::PUSH_PC_JMP);
-    write(dest, 1);
+    writeSize(dest, 1);
     dest.put(opcode::CLEAN_ALL_DEFERS);
-    dest.put(opcode::POP_AX);
-    dest.put(opcode::GLOBAL_RETURN);
+    dest.put(opcode::CALL);
+    writeSize(dest, src.args.size());
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const If &src) {
-    compile(dest, defs, closureDefs, src.cond);
+  void compile(ostream &dest, const Scope &scope, const GlobalReturn &src) {
+    compile(dest, scope, src.value);
+    dest.put(opcode::PUSH_PC_JMP);
+    writeSize(dest, 1);
+    dest.put(opcode::CLEAN_ALL_DEFERS);
+    dest.put(opcode::END);
+  }
+
+  void compile(ostream &dest, const Scope &scope, const If &src) {
+    compile(dest, scope, src.cond);
     string then;
-    {
-      stringstream ss;
-      compile(ss, defs, closureDefs, src.then);
-      then = ss.str();
-    }
+    compile(then, scope, src.then);
     string elze;
-    {
-      stringstream ss;
-      compile(ss, defs, closureDefs, src.elze);
-      elze = ss.str();
-    }
+    compile(elze, scope, src.elze);
     dest.put(opcode::JIF);
-    write(dest, elze.size() + 1 + sizeof(size_t));
+    writeSize(dest, elze.size() + 1 + sizeof(size_t));
     dest << elze;
     dest.put(opcode::JMP);
-    write(dest, then.size());
+    writeSize(dest, then.size());
     dest << then;
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const Null &src) {
+  void compile(ostream &dest, const Scope &scope, const Null &src) {
     dest.put(opcode::NULL_LITERAL);
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const Number &src) {
+  void compile(ostream &dest, const Scope &scope, const Number &src) {
     dest.put(opcode::NUM_LITERAL);
     write(dest, src.value);
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const Return &src) {
-    compile(dest, defs, closureDefs, src.value);
-    dest.put(opcode::PUSH_PC_JMP);
-    write(dest, 1);
-    dest.put(opcode::CLEAN_FN_DEFERS);
-    dest.put(opcode::RETURN);
+  void compile(ostream &dest, const Scope &scope, const Return &src) {
+    compile(dest, scope, src.value);
+    dest.put(opcode::POP_BP);
+    dest.put(opcode::POP_SP);
+    if (scope.hasDefer) {
+      dest.put(opcode::PUSH);
+      dest.put(opcode::PUSH_PC_JMP);
+      writeSize(dest, 1);
+      dest.put(opcode::CLEAN_FN_DEFERS);
+      dest.put(opcode::POP);
+    }
+    dest.put(opcode::POP_PC);
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const SetHighRef &src) {
-    getRef(dest, defs, closureDefs, src.ref);
+  void compile(ostream &dest, const Scope &scope, const SetHighRef &src) {
+    getRef(dest, scope, src.ref);
     dest.put(opcode::PUSH);
-    compile(dest, defs, closureDefs, src.value);
+    compile(dest, scope, src.value);
     dest.put(opcode::SET_HIGH_REF);
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const SetRef &src) {
-    compile(dest, defs, closureDefs, src.value);
+  void compile(ostream &dest, const Scope &scope, const SetRef &src) {
+    compile(dest, scope, src.value);
     if (src.ref.scope == Reference::GLOBAL_SCOPE) {
       dest.put(opcode::SET_GLOBAL);
       write(dest, src.ref.name);
     } else {
       dest.put(opcode::SET_LOCAL);
-      write(dest, defIndex(defs, src.ref.name));
+      writeSize(dest, defIndex(defs, src.ref.name));
     }
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const StringAtom &src) {
+  void compile(ostream &dest, const Scope &scope, const StringAtom &src) {
     dest.put(opcode::STRING_LITERAL);
     write(dest, src.value);
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const Throw &src) {
-    compile(dest, defs, closureDefs, src.value);
+  void compile(ostream &dest, const Scope &scope, const Throw &src) {
+    compile(dest, scope, src.value);
     dest.put(opcode::THROW);
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const Try &src) {
-    compileCalling(dest, defs, closureDefs, src);
+  void compile(ostream &dest, const Scope &scope, const Try &src) {
+    compileCalling(dest, scope, src);
+    dest.put(opcode::PUSH_BP);
+    dest.put(opcode::PUSH_SP_BACK);
+    writeSize(dest, src.args.size() + 1);
     dest.put(opcode::PUSH_TRY);
     dest.put(opcode::PUSH_PC_JMP);
     write(dest, 3 + sizeof(size_t));
@@ -376,14 +410,14 @@ namespace zlt::mylispc {
     dest.put(opcode::THROW);
   }
 
-  void compile(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, const Yield &src) {
+  void compile(ostream &dest, const Scope &scope, const Yield &src) {
     dest.put(opcode::YIELD);
-    compile(dest, defs, closureDefs, src.then);
+    compile(dest, scope, src.then);
   }
 
   // arithmetical operations begin
-  static void arithMultiOper(ostream &dest, const Defs &defs, const ClosureDefs &closureDefs, int opcode, It it, It end) {
-    compile(dest, defs, closureDefs, *it);
+  static void arithMultiOper(ostream &dest, const Scope &scope, int opcode, It it, It end) {
+    compile(dest, scope, *it);
     if (!Dynamicastable<Number> {}(**it)) {
       dest.put(opcode::POSITIVE);
     }

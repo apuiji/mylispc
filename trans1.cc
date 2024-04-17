@@ -11,6 +11,7 @@ namespace zlt::mylispc {
     const Defs &defs;
     Function1::HighDefs highDefs;
     Function1::ClosureDefs closureDefs;
+    bool hasDefer;
     Scope(Scope *parent, const Defs &defs) noexcept: parent(parent), defs(defs) {}
   };
 
@@ -82,6 +83,7 @@ namespace zlt::mylispc {
   }
 
   void trans(UNode &dest, Scope &scope, Defer &src) {
+    scope.hasDefer = true;
     trans(scope, src.value);
   }
 
@@ -105,6 +107,7 @@ namespace zlt::mylispc {
     f->defs = std::move(defs);
     f->highDefs = std::move(fs.highDefs);
     f->closureDefs = std::move(fs.closureDefs);
+    f->hasDefer = fs.hasDefer;
     f->body = std::move(src.body);
   }
 

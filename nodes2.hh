@@ -23,6 +23,7 @@ namespace zlt::mylispc {
     Defs defs;
     HighDefs highDefs;
     ClosureDefs closureDefs;
+    bool hasDefer;
     UNodes body;
     using Node::Node;
   };
