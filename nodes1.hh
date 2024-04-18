@@ -28,6 +28,11 @@ namespace zlt::mylispc {
     Forward(const char *start, Calling &&calling) noexcept: Node(start), Calling(std::move(calling)) {}
   };
 
+  struct GlobalDefer final: Node {
+    UNode value;
+    GlobalDefer(const char *start, UNode &&value) noexcept: Node(start), value(std::move(value)) {}
+  };
+
   struct GlobalForward final: Node, Calling {
     GlobalForward(const char *start, Calling &&calling) noexcept: Node(start), Calling(std::move(calling)) {}
   };

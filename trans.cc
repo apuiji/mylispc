@@ -228,7 +228,11 @@ namespace zlt::mylispc {
 
   template<>
   void trans<"defer"_token>(UNode &dest, bool global, Defs &defs, const char *start, It it, It end) {
-    transUnaryOper<Defer>(dest, global, defs, start, it, end);
+    if (global) {
+      transUnaryOper<GlobalDefer>(dest, global, defs, start, it, end);
+    } else {
+      transUnaryOper<Defer>(dest, global, defs, start, it, end);
+    }
   }
 
   template<>

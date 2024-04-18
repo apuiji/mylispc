@@ -36,6 +36,7 @@ namespace zlt::mylispc {
   declTrans(Defer);
   declTrans(Forward);
   declTrans(Function);
+  declTrans(GlobalDefer);
   declTrans(GlobalForward);
   declTrans(GlobalReturn);
   declTrans(ID);
@@ -61,6 +62,7 @@ namespace zlt::mylispc {
     ifType(Defer);
     ifType(Forward);
     ifType(Function);
+    ifType(GlobalDefer);
     ifType(GlobalForward);
     ifType(GlobalReturn);
     ifType(ID);
@@ -109,6 +111,10 @@ namespace zlt::mylispc {
     f->closureDefs = std::move(fs.closureDefs);
     f->hasDefer = fs.hasDefer;
     f->body = std::move(src.body);
+  }
+
+  void trans(UNode &dest, Scope &scope, GlobalDefer &src) {
+    trans(scope, src.value);
   }
 
   void trans(UNode &dest, Scope &scope, GlobalForward &src) {
