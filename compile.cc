@@ -1,5 +1,5 @@
 #include<sstream>
-#include"mylisp/mylisp.hh"
+#include"mylisp.hh"
 #include"mylisp/opcode.hh"
 #include"myutils/xyz.hh"
 #include"nodes2.hh"

@@ -3,7 +3,7 @@
 #include<fstream>
 #include<iterator>
 #include<sstream>
-#include"mylisp/mylisp.hh"
+#include"mylisp.hh"
 #include"myutils/xyz.hh"
 #include"nodes.hh"
 #include"token.hh"
