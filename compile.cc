@@ -394,7 +394,8 @@ namespace zlt::mylispc {
 
   void compile(ostream &dest, const Scope &scope, const Throw &src) {
     compile(dest, scope, src.value);
-    dest.put(opcode::THROW);
+    dest.put(opcode::PUSH);
+    dest.put(opcode::CLEAN_GUARDS);
   }
 
   void compile(ostream &dest, const Scope &scope, const Try &src) {
@@ -405,11 +406,12 @@ namespace zlt::mylispc {
     dest.put(opcode::CATCH_NAT_FN);
     dest.put(opcode::PUSH_GUARD);
     dest.put(opcode::PUSH_PC_JMP);
-    writeSize(dest, 3 + sizeof(size_t));
+    writeSize(dest, 4 + sizeof(size_t));
     dest.put(opcode::CALL);
     writeSize(dest, src.args.size());
     dest.put(opcode::NULL_LITERAL);
-    dest.put(opcode::THROW);
+    dest.put(opcode::PUSH);
+    dest.put(opcode::CLEAN_GUARDS);
     dest.put(opcode::POP_SP);
     dest.put(opcode::POP_BP);
   }
