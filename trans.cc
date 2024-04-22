@@ -21,7 +21,7 @@ namespace zlt::mylispc {
     Defs _;
     trans(_, src.begin(), src.end());
     src.push_back({});
-    src.back().reset(new Throw(nullptr, nvll()));
+    src.back().reset(new Return(nullptr, nvll()));
   }
 
   static void transList(UNode &dest, Defs &defs, const char *start, It it, It end);
