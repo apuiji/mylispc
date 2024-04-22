@@ -228,14 +228,9 @@ namespace zlt::mylispc {
     dest.put(opcode::FORWARD);
     writeSize(dest, src.args.size());
     if (scope.hasGuard) {
-      dest.put(opcode::PUSH_BP);
-      dest.put(opcode::PUSH_SP_BACK);
-      writeSize(dest, 0);
       dest.put(opcode::PUSH_PC_JMP);
       writeSize(dest, 1);
       dest.put(opcode::CLEAN_FN_GUARDS);
-      dest.put(opcode::POP_SP);
-      dest.put(opcode::POP_BP);
     }
     dest.put(opcode::CALL);
     writeSize(dest, src.args.size());
@@ -352,18 +347,11 @@ namespace zlt::mylispc {
 
   void compile(ostream &dest, const Scope &scope, const Return &src) {
     compile(dest, scope, src.value);
-    dest.put(opcode::POP_SP);
-    dest.put(opcode::POP_BP);
     if (scope.hasGuard) {
       dest.put(opcode::PUSH);
-      dest.put(opcode::PUSH_BP);
-      dest.put(opcode::PUSH_SP_BACK);
-      writeSize(dest, 0);
       dest.put(opcode::PUSH_PC_JMP);
       writeSize(dest, 1);
       dest.put(opcode::CLEAN_FN_GUARDS);
-      dest.put(opcode::POP_SP);
-      dest.put(opcode::POP_BP);
       dest.put(opcode::POP);
     }
     dest.put(opcode::POP_PC);
