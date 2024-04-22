@@ -12,20 +12,30 @@ namespace zlt::mylispc {
   struct Scope {
     const Function1::Defs &defs;
     const Function1::ClosureDefs &closureDefs;
-    bool hasDefer;
-    Scope(const Function1::Defs &defs, const Function1::ClosureDefs &closureDefs, bool hasDefer) noexcept:
-    defs(defs), closureDefs(closureDefs), hasDefer(hasDefer) {}
+    bool hasGuard;
+    Scope(const Function1::Defs &defs, const Function1::ClosureDefs &closureDefs, bool hasGuard) noexcept:
+    defs(defs), closureDefs(closureDefs), hasGuard(hasGuard) {}
   };
 
-  using It = UNodes::const_iterator;
-
   static void compile(ostream &dest, const Scope &scope, const UNode &src);
+
+  using It = UNodes::const_iterator;
 
   template<class It>
   static inline void compile(ostream &dest, const Scope &scope, It it, It end) {
     for (; it != end; ++it) {
       compile(dest, scope, *it);
     }
+  }
+
+  void compile(string &dest, const UNode &src) {
+    // main function
+    auto &mf = static_cast<const Function1 &>(*src);
+    Scope scope(mf.defs, mf.closureDefs, mf.hasGuard);
+    stringstream ss;
+    compile(ss, scope, mf.body.begin(), mf.body.end());
+    ss.put(opcode::PUSH_DEFER);
+    dest = ss.str();
   }
 
   static inline void compile(string &dest, const Scope &scope, const UNode &src) {
@@ -36,15 +46,6 @@ namespace zlt::mylispc {
 
   template<class It>
   static inline void compile(string &dest, const Scope &scope, It it, It end) {
-    stringstream ss;
-    compile(ss, scope, it, end);
-    dest = ss.str();
-  }
-
-  void compile(string &dest, It it, It end) {
-    Function1::Defs _;
-    Function1::ClosureDefs _1;
-    Scope scope(_, _1, false);
     stringstream ss;
     compile(ss, scope, it, end);
     dest = ss.str();
@@ -61,9 +62,7 @@ namespace zlt::mylispc {
   declCompile(Function1);
   declCompile(GetHighRef);
   declCompile(GetRef);
-  declCompile(GlobalDefer);
-  declCompile(GlobalForward);
-  declCompile(GlobalReturn);
+  declCompile(Guard);
   declCompile(If);
   declCompile(Null);
   declCompile(Number);
@@ -73,7 +72,6 @@ namespace zlt::mylispc {
   declCompile(StringAtom);
   declCompile(Throw);
   declCompile(Try);
-  declCompile(Yield);
   // arithmetical operations begin
   declCompile(ArithAddOper);
   declCompile(ArithSubOper);
@@ -129,9 +127,7 @@ namespace zlt::mylispc {
     ifType(Function1);
     ifType(GetHighRef);
     ifType(GetRef);
-    ifType(GlobalDefer);
-    ifType(GlobalForward);
-    ifType(GlobalReturn);
+    ifType(Guard);
     ifType(If);
     ifType(Null);
     ifType(Number);
@@ -141,7 +137,6 @@ namespace zlt::mylispc {
     ifType(StringAtom);
     ifType(Throw);
     ifType(Try);
-    ifType(Yield);
     // arithmetical operations begin
     ifType(ArithAddOper);
     ifType(ArithSubOper);
@@ -226,20 +221,19 @@ namespace zlt::mylispc {
   void compile(ostream &dest, const Scope &scope, const Defer &src) {
     compile(dest, scope, src.value);
     dest.put(opcode::PUSH_DEFER);
-    dest.put(opcode::INC_FN_DEFER);
   }
 
   void compile(ostream &dest, const Scope &scope, const Forward &src) {
     compileCalling(dest, scope, src);
     dest.put(opcode::FORWARD);
     writeSize(dest, src.args.size());
-    if (scope.hasDefer) {
+    if (scope.hasGuard) {
       dest.put(opcode::PUSH_BP);
       dest.put(opcode::PUSH_SP_BACK);
       writeSize(dest, 0);
       dest.put(opcode::PUSH_PC_JMP);
       writeSize(dest, 1);
-      dest.put(opcode::CLEAN_FN_DEFERS);
+      dest.put(opcode::CLEAN_GUARDS);
       dest.put(opcode::POP_SP);
       dest.put(opcode::POP_BP);
     }
@@ -327,38 +321,10 @@ namespace zlt::mylispc {
     getRef(dest, scope, src.ref);
   }
 
-  void compile(ostream &dest, const Scope &scope, const GlobalDefer &src) {
+  void compile(ostream &dest, const Scope &scope, const Guard &src) {
     compile(dest, scope, src.value);
-    dest.put(opcode::PUSH_DEFER);
-  }
-
-  void compile(ostream &dest, const Scope &scope, const GlobalForward &src) {
-    compileCalling(dest, scope, src);
-    dest.put(opcode::GLOBAL_FORWARD);
-    writeSize(dest, src.args.size());
-    dest.put(opcode::PUSH_BP);
-    dest.put(opcode::PUSH_SP_BACK);
-    writeSize(dest, 0);
-    dest.put(opcode::PUSH_PC_JMP);
-    writeSize(dest, 1);
-    dest.put(opcode::CLEAN_ALL_DEFERS);
-    dest.put(opcode::POP_SP);
-    dest.put(opcode::POP_BP);
-    dest.put(opcode::CALL);
-    writeSize(dest, src.args.size());
-  }
-
-  void compile(ostream &dest, const Scope &scope, const GlobalReturn &src) {
-    compile(dest, scope, src.value);
-    dest.put(opcode::PUSH_BP);
-    dest.put(opcode::PUSH_SP_BACK);
-    writeSize(dest, 0);
-    dest.put(opcode::PUSH_PC_JMP);
-    writeSize(dest, 1);
-    dest.put(opcode::CLEAN_ALL_DEFERS);
-    dest.put(opcode::POP_SP);
-    dest.put(opcode::POP_BP);
-    dest.put(opcode::END);
+    dest.put(opcode::PUSH_GUARD);
+    dest.put(opcode::INC_GUARD);
   }
 
   void compile(ostream &dest, const Scope &scope, const If &src) {
@@ -388,14 +354,14 @@ namespace zlt::mylispc {
     compile(dest, scope, src.value);
     dest.put(opcode::POP_SP);
     dest.put(opcode::POP_BP);
-    if (scope.hasDefer) {
+    if (scope.hasGuard) {
       dest.put(opcode::PUSH);
       dest.put(opcode::PUSH_BP);
       dest.put(opcode::PUSH_SP_BACK);
       writeSize(dest, 0);
       dest.put(opcode::PUSH_PC_JMP);
       writeSize(dest, 1);
-      dest.put(opcode::CLEAN_FN_DEFERS);
+      dest.put(opcode::CLEAN_GUARDS);
       dest.put(opcode::POP_SP);
       dest.put(opcode::POP_BP);
       dest.put(opcode::POP);
@@ -436,7 +402,8 @@ namespace zlt::mylispc {
     dest.put(opcode::PUSH_BP);
     dest.put(opcode::PUSH_SP_BACK);
     writeSize(dest, src.args.size() + 1);
-    dest.put(opcode::PUSH_CATCH);
+    dest.put(opcode::CATCH_NAT_FN);
+    dest.put(opcode::PUSH_GUARD);
     dest.put(opcode::PUSH_PC_JMP);
     writeSize(dest, 3 + sizeof(size_t));
     dest.put(opcode::CALL);
@@ -445,11 +412,6 @@ namespace zlt::mylispc {
     dest.put(opcode::THROW);
     dest.put(opcode::POP_SP);
     dest.put(opcode::POP_BP);
-  }
-
-  void compile(ostream &dest, const Scope &scope, const Yield &src) {
-    dest.put(opcode::YIELD);
-    compile(dest, scope, src.then);
   }
 
   // arithmetical operations begin

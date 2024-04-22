@@ -76,9 +76,10 @@ namespace zlt::mylispc {
 
   /// @return terminated
   bool optimizeBody(UNodes &dest, UNodes::iterator it, UNodes::iterator end);
-  void trans1(UNodes::iterator it, UNodes::iterator end);
-  void trans2(UNodes::iterator it, UNodes::iterator end);
-  void compile(std::string &dest, UNodes::const_iterator it, UNodes::const_iterator end);
+  /// @param[out] dest main function
+  void trans1(UNode &dest, UNodes::iterator it, UNodes::iterator end);
+  void trans2(UNode &src);
+  void compile(std::string &dest, const UNode &src);
 
   struct Bad {
     int code;

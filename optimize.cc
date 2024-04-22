@@ -15,14 +15,12 @@ namespace zlt::mylispc {
   declOptimize(Defer);
   declOptimize(Forward);
   declOptimize(Function);
-  declOptimize(GlobalForward);
-  declOptimize(GlobalReturn);
+  declOptimize(Guard);
   declOptimize(If);
   declOptimize(Return);
   declOptimize(SetID);
   declOptimize(Throw);
   declOptimize(Try);
-  declOptimize(Yield);
   // operations begin
   declOptimize(Operation<1>);
   template<int N>
@@ -66,14 +64,12 @@ namespace zlt::mylispc {
     ifType(Defer);
     ifType(Forward);
     ifType(Function);
-    ifType(GlobalForward);
-    ifType(GlobalReturn);
+    ifType(Guard);
     ifType(If);
     ifType(Return);
     ifType(SetID);
     ifType(Throw);
     ifType(Try);
-    ifType(Yield);
     // operations begin
     // arithmetical operations begin
     ifType(ArithAddOper);
@@ -163,12 +159,7 @@ namespace zlt::mylispc {
     src.body = std::move(body);
   }
 
-  void optimize(UNode &dest, GlobalForward &src) {
-    optimize(src.callee);
-    optimize(src.args.begin(), src.args.end());
-  }
-
-  void optimize(UNode &dest, GlobalReturn &src) {
+  void optimize(UNode &dest, Guard &src) {
     optimize(src.value);
   }
 
@@ -202,10 +193,6 @@ namespace zlt::mylispc {
   void optimize(UNode &dest, Try &src) {
     optimize(src.callee);
     optimize(src.args.begin(), src.args.end());
-  }
-
-  void optimize(UNode &dest, Yield &src) {
-    optimize(src.then);
   }
 
   // operations begin

@@ -11,7 +11,7 @@ namespace zlt::mylispc {
     const Defs &defs;
     Function1::HighDefs highDefs;
     Function1::ClosureDefs closureDefs;
-    bool hasDefer;
+    bool hasGuard;
     Scope(Scope *parent, const Defs &defs) noexcept: parent(parent), defs(defs) {}
   };
 
@@ -24,9 +24,14 @@ namespace zlt::mylispc {
     }
   }
 
-  void trans1(It it, It end) {
+  void trans1(UNode &dest, It it, It end) {
     Scope gs(nullptr, Defs());
     trans(gs, it, end);
+    auto f = new Function1(nullptr);
+    dest.reset(f);
+    f->paramn = 0;
+    f->hasGuard = gs.hasGuard;
+    f->body = UNodes(move_iterator(it), move_iterator(end));
   }
 
   #define declTrans(T) \
@@ -36,16 +41,13 @@ namespace zlt::mylispc {
   declTrans(Defer);
   declTrans(Forward);
   declTrans(Function);
-  declTrans(GlobalDefer);
-  declTrans(GlobalForward);
-  declTrans(GlobalReturn);
+  declTrans(Guard);
   declTrans(ID);
   declTrans(If);
   declTrans(Return);
   declTrans(SetID);
   declTrans(Throw);
   declTrans(Try);
-  declTrans(Yield);
   declTrans(Operation<1>);
   template<int N>
   declTrans(Operation<N>);
@@ -62,16 +64,13 @@ namespace zlt::mylispc {
     ifType(Defer);
     ifType(Forward);
     ifType(Function);
-    ifType(GlobalDefer);
-    ifType(GlobalForward);
-    ifType(GlobalReturn);
+    ifType(Guard);
     ifType(ID);
     ifType(If);
     ifType(Return);
     ifType(SetID);
     ifType(Throw);
     ifType(Try);
-    ifType(Yield);
     ifType(Operation<1>);
     ifType(Operation<2>);
     ifType(Operation<3>);
@@ -85,7 +84,6 @@ namespace zlt::mylispc {
   }
 
   void trans(UNode &dest, Scope &scope, Defer &src) {
-    scope.hasDefer = true;
     trans(scope, src.value);
   }
 
@@ -109,20 +107,12 @@ namespace zlt::mylispc {
     f->defs = std::move(defs);
     f->highDefs = std::move(fs.highDefs);
     f->closureDefs = std::move(fs.closureDefs);
-    f->hasDefer = fs.hasDefer;
+    f->hasGuard = fs.hasGuard;
     f->body = std::move(src.body);
   }
 
-  void trans(UNode &dest, Scope &scope, GlobalDefer &src) {
-    trans(scope, src.value);
-  }
-
-  void trans(UNode &dest, Scope &scope, GlobalForward &src) {
-    trans(scope, src.callee);
-    trans(scope, src.args.begin(), src.args.end());
-  }
-
-  void trans(UNode &dest, Scope &scope, GlobalReturn &src) {
+  void trans(UNode &dest, Scope &scope, Guard &src) {
+    scope.hasGuard = true;
     trans(scope, src.value);
   }
 
@@ -134,6 +124,9 @@ namespace zlt::mylispc {
   }
 
   Reference findDef(Scope &scope, const string *name, bool local) {
+    if (!scope.parent) [[unlikely]] {
+      return Reference(Reference::GLOBAL_SCOPE, name);
+    }
     if (scope.defs.find(name) != scope.defs.end()) {
       if (!local) {
         scope.highDefs.insert(name);
@@ -142,9 +135,6 @@ namespace zlt::mylispc {
     }
     if (auto it = scope.closureDefs.find(name); it != scope.closureDefs.end()) {
       return Reference(Reference::CLOSURE_SCOPE, name);
-    }
-    if (!scope.parent) {
-      return Reference(Reference::GLOBAL_SCOPE, name);
     }
     auto ref = findDef(*scope.parent, name, false);
     if (ref.scope == Reference::GLOBAL_SCOPE) {
@@ -177,10 +167,6 @@ namespace zlt::mylispc {
   void trans(UNode &dest, Scope &scope, Try &src) {
     trans(scope, src.callee);
     trans(scope, src.args.begin(), src.args.end());
-  }
-
-  void trans(UNode &dest, Scope &scope, Yield &src) {
-    trans(scope, src.then);
   }
 
   void trans(UNode &dest, Scope &scope, Operation<1> &src) {

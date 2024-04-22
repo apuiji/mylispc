@@ -15,8 +15,8 @@ namespace zlt::mylispc {
     }
   }
 
-  void trans2(It it, It end) {
-    trans(HighDefs(), it, end);
+  void trans2(UNode &src) {
+    trans(HighDefs(), src);
   }
 
   #define declTrans(T) \
@@ -27,15 +27,12 @@ namespace zlt::mylispc {
   declTrans(Forward);
   declTrans(Function1);
   declTrans(GetRef);
-  declTrans(GlobalDefer);
-  declTrans(GlobalForward);
-  declTrans(GlobalReturn);
+  declTrans(Guard);
   declTrans(If);
   declTrans(Return);
   declTrans(SetRef);
   declTrans(Throw);
   declTrans(Try);
-  declTrans(Yield);
   declTrans(Operation<1>);
   template<int N>
   declTrans(Operation<N>);
@@ -53,15 +50,12 @@ namespace zlt::mylispc {
     ifType(Forward);
     ifType(Function1);
     ifType(GetRef);
-    ifType(GlobalDefer);
-    ifType(GlobalForward);
-    ifType(GlobalReturn);
+    ifType(Guard);
     ifType(If);
     ifType(Return);
     ifType(SetRef);
     ifType(Throw);
     ifType(Try);
-    ifType(Yield);
     ifType(Operation<1>);
     ifType(Operation<2>);
     ifType(Operation<3>);
@@ -105,16 +99,7 @@ namespace zlt::mylispc {
     return false;
   }
 
-  void trans(UNode &dest, const HighDefs &highDefs, GlobalDefer &src) {
-    trans(highDefs, src.value);
-  }
-
-  void trans(UNode &dest, const HighDefs &highDefs, GlobalForward &src) {
-    trans(highDefs, src.callee);
-    trans(highDefs, src.args.begin(), src.args.end());
-  }
-
-  void trans(UNode &dest, const HighDefs &highDefs, GlobalReturn &src) {
+  void trans(UNode &dest, const HighDefs &highDefs, Guard &src) {
     trans(highDefs, src.value);
   }
 
@@ -142,10 +127,6 @@ namespace zlt::mylispc {
   void trans(UNode &dest, const HighDefs &highDefs, Try &src) {
     trans(highDefs, src.callee);
     trans(highDefs, src.args.begin(), src.args.end());
-  }
-
-  void trans(UNode &dest, const HighDefs &highDefs, Yield &src) {
-    trans(highDefs, src.then);
   }
 
   void trans(UNode &dest, const HighDefs &highDefs, Operation<1> &src) {

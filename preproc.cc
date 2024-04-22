@@ -1,5 +1,4 @@
 #include<algorithm>
-#include<cstring>
 #include<fstream>
 #include<iterator>
 #include<sstream>
@@ -73,6 +72,7 @@ namespace zlt::mylispc {
   declPreproc1("#def");
   declPreproc1("#if");
   declPreproc1("#include");
+  declPreproc1("#movedef");
   declPreproc1("#undef");
 
   #undef declPreproc1
@@ -98,7 +98,7 @@ namespace zlt::mylispc {
       return;
     }
     UNodes items;
-    preproc(items, srcs, macros, ++it, end);
+    preproc(items, srcs, macros, it, end);
     dest.push_back({});
     dest.back().reset(new List(start, std::move(items)));
   }
@@ -117,6 +117,7 @@ namespace zlt::mylispc {
     ifToken("#def")
     ifToken("#if")
     ifToken("#include")
+    ifToken("#movedef")
     ifToken("#undef")
     #undef ifToken
     return nullptr;
@@ -139,21 +140,12 @@ namespace zlt::mylispc {
     macroExpand1(dest, map, end, macro.body.begin(), macro.body.end());
   }
 
-  static void makeMacroExpandMap1(MacroExpandMap &dest, Macro::ItParam itParam, Macro::ItParam endParam, It end);
-
   void makeMacroExpandMap(MacroExpandMap &dest, Macro::ItParam itParam, Macro::ItParam endParam, It it, It end) {
-    for (; itParam != endParam; ++itParam, ++it) {
-      if (it == end) [[unlikely]] {
-        makeMacroExpandMap1(dest, itParam, endParam, end);
-        return;
-      }
+    for (; itParam != endParam && it != end; ++itParam, ++it) {
       if (*itParam) {
         dest[*itParam] = it;
       }
     }
-  }
-
-  void makeMacroExpandMap1(MacroExpandMap &dest, Macro::ItParam itParam, Macro::ItParam endParam, It end) {
     for (; itParam != endParam; ++itParam) {
       if (*itParam) {
         dest[*itParam] = end;
@@ -182,10 +174,10 @@ namespace zlt::mylispc {
       clone(dest, src);
       return;
     }
-    if (strncmp(src.name->data(), "...", 3)) {
-      clone(dest, *it->second);
-    } else {
+    if (src.raw.starts_with("...")) {
       clone(dest, it->second, endArg);
+    } else {
+      clone(dest, *it->second);
     }
   }
 
@@ -275,7 +267,7 @@ namespace zlt::mylispc {
     }
     if (auto id = dynamic_cast<const IDAtom *>(it->get()); id) {
       dest.push_back(id->name);
-      if (!strncmp(id->name->data(), "...", 3)) {
+      if (id->raw.starts_with("...")) {
         return;
       }
     } else if (auto ls = dynamic_cast<const List *>(it->get()); ls && ls->items.empty()) {
@@ -290,8 +282,7 @@ namespace zlt::mylispc {
 
   template<>
   void preproc1<"#if"_token>(UNodes &dest, Sources &srcs, Macros &macros, const char *start, It it, It end) {
-    It elze = it;
-    for (; elze != end && !isTokenAtom<"#if"_token>(*elze); ++elze);
+    It elze = find_if(it, end, isTokenAtom<"#if"_token>);
     preprocIf(dest, srcs, macros, start, it, elze, end);
   }
 
@@ -388,11 +379,43 @@ namespace zlt::mylispc {
   }
 
   template<>
+  void preproc1<"#movedef"_token>(UNodes &dest, Sources &srcs, Macros &macros, const char *start, It it, It end) {
+    if (it == end) [[unlikely]] {
+      return;
+    }
+    auto from = dynamic_cast<const IDAtom *>(it->get());
+    if (!from) {
+      throw Bad(bad::INV_PREPROC_ARG, (**it).start);
+    }
+    if (++it == end) [[unlikely]] {
+      return;
+    }
+    auto to = dynamic_cast<const IDAtom *>(it->get());
+    if (!to) {
+      throw Bad(bad::INV_PREPROC_ARG, (**it).start);
+    }
+    auto it1 = macros.find(from->name);
+    if (it1 == macros.end()) {
+      return;
+    }
+    auto it2 = macros.find(to->name);
+    if (it2 != macros.end()) {
+      throw Bad(bad::MACRO_ALREADY_DEFINED, start);
+    }
+    it2->second = std::move(it1->second);
+    macros.erase(it1);
+  }
+
+  template<>
   void preproc1<"#undef"_token>(UNodes &dest, Sources &srcs, Macros &macros, const char *start, It it, It end) {
     if (it == end) [[unlikely]] {
       return;
     }
-    auto it1 = findMacro(macros, *it);
+    auto id = dynamic_cast<const IDAtom *>(it->get());
+    if (!id) {
+      throw Bad(bad::INV_PREPROC_ARG, (**it).start);
+    }
+    auto it1 = macros.find(id->name);
     if (it1 != macros.end()) {
       macros.erase(it1);
     }

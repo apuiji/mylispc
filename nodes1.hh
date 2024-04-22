@@ -28,18 +28,9 @@ namespace zlt::mylispc {
     Forward(const char *start, Calling &&calling) noexcept: Node(start), Calling(std::move(calling)) {}
   };
 
-  struct GlobalDefer final: Node {
+  struct Guard final: Node {
     UNode value;
-    GlobalDefer(const char *start, UNode &&value) noexcept: Node(start), value(std::move(value)) {}
-  };
-
-  struct GlobalForward final: Node, Calling {
-    GlobalForward(const char *start, Calling &&calling) noexcept: Node(start), Calling(std::move(calling)) {}
-  };
-
-  struct GlobalReturn final: Node {
-    UNode value;
-    GlobalReturn(const char *start, UNode &&value) noexcept: Node(start), value(std::move(value)) {}
+    Guard(const char *start, UNode &&value) noexcept: Node(start), value(std::move(value)) {}
   };
 
   struct Function final: Node {
@@ -94,11 +85,6 @@ namespace zlt::mylispc {
 
   struct Try final: Node, Calling {
     Try(const char *start, Calling &&calling) noexcept: Node(start), Calling(std::move(calling)) {}
-  };
-
-  struct Yield final: Node {
-    UNode then;
-    Yield(const char *start, UNode &&then) noexcept: Node(start), then(std::move(then)) {}
   };
 
   // operations begin

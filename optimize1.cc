@@ -33,7 +33,7 @@ namespace zlt::mylispc {
   }
 
   bool isTerminated(const UNode &src) noexcept {
-    if (Dynamicastable<Forward, GlobalForward, GlobalReturn, Return, Throw> {}(*src)) {
+    if (Dynamicastable<Forward, Return, Throw> {}(*src)) {
       return true;
     }
     if (auto a = dynamic_cast<const If *>(src.get()); a) {
