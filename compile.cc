@@ -233,7 +233,7 @@ namespace zlt::mylispc {
       writeSize(dest, 0);
       dest.put(opcode::PUSH_PC_JMP);
       writeSize(dest, 1);
-      dest.put(opcode::CLEAN_GUARDS);
+      dest.put(opcode::CLEAN_FN_GUARDS);
       dest.put(opcode::POP_SP);
       dest.put(opcode::POP_BP);
     }
@@ -324,7 +324,7 @@ namespace zlt::mylispc {
   void compile(ostream &dest, const Scope &scope, const Guard &src) {
     compile(dest, scope, src.value);
     dest.put(opcode::PUSH_GUARD);
-    dest.put(opcode::INC_GUARD);
+    dest.put(opcode::INC_FN_GUARD);
   }
 
   void compile(ostream &dest, const Scope &scope, const If &src) {
@@ -361,7 +361,7 @@ namespace zlt::mylispc {
       writeSize(dest, 0);
       dest.put(opcode::PUSH_PC_JMP);
       writeSize(dest, 1);
-      dest.put(opcode::CLEAN_GUARDS);
+      dest.put(opcode::CLEAN_FN_GUARDS);
       dest.put(opcode::POP_SP);
       dest.put(opcode::POP_BP);
       dest.put(opcode::POP);
