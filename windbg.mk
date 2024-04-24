@@ -8,8 +8,8 @@ windbg/%.o: %.cc ${HHS}
 
 clean:
 	echo>windbg\a.o
-	echo>windbg\libmylispc.a
+	echo>windbg\libmylispc.dll.a
 	del windbg\*.o
-	del windbg\libmylispc.a
+	del windbg\libmylispc.dll.a
 
 .PHONY: clean

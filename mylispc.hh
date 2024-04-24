@@ -7,7 +7,6 @@
 #include<set>
 #include<string>
 #include<vector>
-#include"myutils/myiter.hh"
 
 namespace zlt::mylispc {
   struct Node {
@@ -67,7 +66,8 @@ namespace zlt::mylispc {
   void trans(UNodes &src);
   void optimize(UNode &src);
 
-  template<myiter::IteratorOf<UNode> It>
+  template<class It>
+  requires (std::is_same_v<std::iter_value_t<It>, UNode>)
   static inline void optimize(It it, It end) {
     for (; it != end; ++it) {
       optimize(*it);
