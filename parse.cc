@@ -51,10 +51,6 @@ namespace zlt::mylispc {
       dest.reset(new NumberAtom(start0, raw0, d));
       return end0;
     }
-    if (_0 == token::CHAR) {
-      dest.reset(new CharAtom(start0, c));
-      return end0;
-    }
     if (_0 == token::STRING) {
       auto value = mylisp::addString(std::move(s));
       dest.reset(new StringAtom(start0, value));

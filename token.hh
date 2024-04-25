@@ -5,7 +5,6 @@
 
 namespace zlt::mylispc::token {
   enum {
-    CHAR,
     E0F,
     ID,
     NUMBER,

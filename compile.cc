@@ -56,7 +56,6 @@ namespace zlt::mylispc {
 
   declCompile(Call);
   declCompile(Callee);
-  declCompile(CharAtom);
   declCompile(Defer);
   declCompile(Forward);
   declCompile(Function1);
@@ -121,7 +120,6 @@ namespace zlt::mylispc {
     }
     ifType(Call);
     ifType(Callee);
-    ifType(CharAtom);
     ifType(Defer);
     ifType(Forward);
     ifType(Function1);
@@ -211,11 +209,6 @@ namespace zlt::mylispc {
 
   void compile(ostream &dest, const Scope &scope, const Callee &src) {
     dest.put(opcode::GET_CALLEE);
-  }
-
-  void compile(ostream &dest, const Scope &scope, const CharAtom &src) {
-    dest.put(opcode::CHAR_LITERAL);
-    dest.put(src.value);
   }
 
   void compile(ostream &dest, const Scope &scope, const Defer &src) {

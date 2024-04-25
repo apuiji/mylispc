@@ -14,7 +14,7 @@ namespace zlt::mylispc {
     }
     It last = prev(end);
     for (; it != last; ++it) {
-      if (Dynamicastable<CharAtom, Function, ID, Number, StringAtom> {}(**it)) {
+      if (Dynamicastable<Function, ID, Number, StringAtom> {}(**it)) {
         continue;
       }
       if (auto a = dynamic_cast<SequenceOper *>(it->get()); a) {

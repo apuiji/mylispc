@@ -13,11 +13,6 @@ namespace zlt::mylispc {
     NumberAtom(const char *start, std::string_view raw, double value) noexcept: RawAtom(start, raw), value(value) {}
   };
 
-  struct CharAtom final: Node {
-    char value;
-    CharAtom(const char *start, char value) noexcept: Node(start), value(value) {}
-  };
-
   struct StringAtom final: Node {
     const std::string *value;
     StringAtom(const char *start, const std::string *value) noexcept: Node(start), value(value) {}

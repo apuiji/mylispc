@@ -20,7 +20,7 @@ namespace zlt::mylispc {
     }
   }
 
-  template<AnyOf<NumberAtom, CharAtom, StringAtom, IDAtom, TokenAtom> T>
+  template<AnyOf<NumberAtom, StringAtom, IDAtom, TokenAtom> T>
   static inline void clone(UNodes &dest, const T &src) {
     dest.push_back({});
     dest.back().reset(new T(src));
@@ -40,7 +40,6 @@ namespace zlt::mylispc {
       return; \
     }
     ifType(NumberAtom);
-    ifType(CharAtom);
     ifType(StringAtom);
     ifType(IDAtom);
     ifType(TokenAtom);
@@ -342,8 +341,6 @@ namespace zlt::mylispc {
     filesystem::path path;
     if (auto a = dynamic_cast<const RawAtom *>(src.get()); a) {
       path = a->raw;
-    } else if (auto a = dynamic_cast<const CharAtom *>(src.get()); a) {
-      path = string(&a->value, 1);
     } else if (auto a = dynamic_cast<const StringAtom *>(src.get()); a) {
       path = *a->value;
     } else {

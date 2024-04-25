@@ -70,14 +70,8 @@ namespace zlt::mylispc {
       ss.put(c);
       return lexerStr(charval, strval, ss, start, it + 1 + n, end);
     }
-    auto s = ss.str();
-    if (s.size() == 1) {
-      charval = s[0];
-      return { token::CHAR, it + 1 };
-    } else {
-      strval = std::move(s);
-      return { token::STRING, it + 1 };
-    }
+    strval = ss.str();
+    return { token::STRING, it + 1 };
   }
 
   static bool esch1(int &c, size_t &n, It it, It end) noexcept;

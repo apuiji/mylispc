@@ -106,7 +106,7 @@ namespace zlt::mylispc {
 
   // aa begin
   static bool isBoolConst(bool &dest, const UNode &src) noexcept {
-    if (Dynamicastable<Callee, CharAtom, Function, Number, StringAtom> {}(*src)) {
+    if (Dynamicastable<Callee, Function, Number, StringAtom> {}(*src)) {
       dest = true;
       return true;
     }
@@ -118,7 +118,7 @@ namespace zlt::mylispc {
   }
 
   static bool isNumConst(double &dest, const UNode &src) noexcept {
-    if (Dynamicastable<Callee, CharAtom, Function, Null, StringAtom> {}(*src)) {
+    if (Dynamicastable<Callee, Function, Null, StringAtom> {}(*src)) {
       dest = NAN;
       return true;
     }
@@ -486,9 +486,7 @@ namespace zlt::mylispc {
 
   void optimize(UNode &dest, LengthOper &src) {
     optimize(src.item);
-    if (Dynamicastable<CharAtom> {}(*src.item)) {
-      dest = number(1, src.start);
-    } else if (auto a = dynamic_cast<StringAtom *>(src.item.get()); a) {
+    if (auto a = dynamic_cast<StringAtom *>(src.item.get()); a) {
       dest = number(a->value->size(), src.start);
     }
   }

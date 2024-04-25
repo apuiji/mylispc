@@ -35,7 +35,7 @@ namespace zlt::mylispc {
       src.reset(new ID(a->start, a->name));
       return;
     }
-    if (Dynamicastable<CharAtom, StringAtom> {}(*src)) {
+    if (Dynamicastable<StringAtom> {}(*src)) {
       return;
     }
     if (auto a = dynamic_cast<List *>(src.get()); a) {
