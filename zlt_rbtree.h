@@ -6,48 +6,18 @@
 typedef struct zltRBTree zltRBTree;
 
 struct zltRBTree {
-  zltBiTree base;
-  int red;
+  zltRBTree *parent;
+  zltRBTree *lchd;
+  zltRBTree *rchd;
+  bool red;
 };
 
-// most functions begin
-static inline zltRBTree *zltRBTreeMostTop(ZLT_NN const zltRBTree *tree) {
-  return (zltRBTree *) zltBiTreeMostTop((const zltBiTree *) tree);
+static inline void zltRBTreeMake(zltRBTree *dest, zltRBTree *parent) {
+  zltBiTreeMake((zltBiTree *) dest, (zltBiTree *) parent);
+  dest->red = true;
 }
 
-static inline zltRBTree *zltRBTreeMostLeft(ZLT_NN const zltRBTree *tree) {
-  return (zltRBTree *) zltBiTreeMostLeft((const zltBiTree *) tree);
-}
-
-static inline zltRBTree *zltRBTreeMostRight(ZLT_NN const zltRBTree *tree) {
-  return (zltRBTree *) zltBiTreeMostRight((const zltBiTree *) tree);
-}
-// most functions end
-
-// iterators begin
-static inline zltRBTree *zltRBTreeLNR(ZLT_NN const zltRBTree *tree) {
-  return (zltRBTree *) zltBiTreeLNR((const zltBiTree *) tree);
-}
-
-static inline zltRBTree *zltRBTreeLNR(ZLT_NN const zltRBTree *tree) {
-  return (zltRBTree *) zltBiTreeLNR((const zltBiTree *) tree);
-}
-
-static inline zltRBTree *zltRBTreeLNR(ZLT_NN const zltRBTree *tree) {
-  return (zltRBTree *) zltBiTreeLNR((const zltBiTree *) tree);
-}
-
-static inline zltRBTree *zltRBTreeLNR(ZLT_NN const zltRBTree *tree) {
-  return (zltRBTree *) zltBiTreeLNR((const zltBiTree *) tree);
-}
-
-static inline zltRBTree *zltRBTreeLNR(ZLT_NN const zltRBTree *tree) {
-  return (zltRBTree *) zltBiTreeLNR((const zltBiTree *) tree);
-}
-
-static inline zltRBTree *zltRBTreeLNR(ZLT_NN const zltRBTree *tree) {
-  return (zltRBTree *) zltBiTreeLNR((const zltBiTree *) tree);
-}
-// iterators end
+void zltRBTreeAfterInsert(zltRBTree **root, zltRBTree *node);
+void zltRBTreeBeforeErase(zltRBTree **root, zltRBTree *node);
 
 #endif

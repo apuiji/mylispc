@@ -1,12 +1,9 @@
 #ifndef ZLT_XYZ_H
 #define ZLT_XYZ_H
 
-/// just declare not null
-#define ZLT_NN
+#include<stddef.h>
 
-#define ZLT_LIKELY
-#define ZLT_UNLIKELY
-
-bool zltIsxdigit(ZLT_NN int *dest, int c);
+/// @return 0-15 when c is a hex character, else -1
+int zltIsxdigit(int c);
 
 #endif

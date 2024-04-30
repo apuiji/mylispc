@@ -2,8 +2,8 @@
 
 typedef zltBiTree BiTree;
 
-void zltBiTreeClean(BiTree *root, ZLT_NN zltBiTreeDtor *dtor) {
-  if (!root) ZLT_UNLIKELY {
+void zltBiTreeClean(BiTree *root, zltBiTreeDtor *dtor) {
+  if (!root) {
     return;
   }
   zltBiTreeClean(root->lchd, dtor);
@@ -12,26 +12,26 @@ void zltBiTreeClean(BiTree *root, ZLT_NN zltBiTreeDtor *dtor) {
 }
 
 // most functions begin
-BiTree *zltBiTreeMostTop(ZLT_NN const BiTree *tree) {
+BiTree *zltBiTreeMostTop(const BiTree *tree) {
   return tree->top ? zltBiTreeMostTop(tree->top) : (BiTree *) tree;
 }
 
-BiTree *zltBiTreeMostLeft(ZLT_NN const BiTree *tree) {
+BiTree *zltBiTreeMostLeft(const BiTree *tree) {
   return tree->lchd ? zltBiTreeMostLeft(tree->lchd) : (BiTree *) tree;
 }
 
-BiTree *zltBiTreeMostRight(ZLT_NN const zltBiTree *tree) {
+BiTree *zltBiTreeMostRight(const zltBiTree *tree) {
   return tree->rchd ? zltBiTreeMostRight(tree->rchd) : (BiTree *) tree;
 }
 // most functions end
 
 // iterators begin
-BiTree *zltBiTreeLNR(ZLT_NN const BiTree *tree) {
+BiTree *zltBiTreeLNR(const BiTree *tree) {
   if (tree->rchd) {
     return zltBiTreeMostLeft(tree->rchd);
   }
   BiTree *parent = tree->parent;
-  if (!parent) ZLT_UNLIKELY {
+  if (!parent) {
     return NULL;
   }
   if (tree == parent->lchd) {
@@ -40,12 +40,12 @@ BiTree *zltBiTreeLNR(ZLT_NN const BiTree *tree) {
   return NULL;
 }
 
-BiTree *zltBiTreeRNL(ZLT_NN const BiTree *tree) {
+BiTree *zltBiTreeRNL(const BiTree *tree) {
   if (tree->lchd) {
     return zltBiTreeMostRight(tree->lchd);
   }
   BiTree *parent = tree->parent;
-  if (!parent) ZLT_UNLIKELY {
+  if (!parent) {
     return NULL;
   }
   if (tree == parent->rchd) {
@@ -54,9 +54,9 @@ BiTree *zltBiTreeRNL(ZLT_NN const BiTree *tree) {
   return NULL;
 }
 
-BiTree *zltBiTreeLRN(ZLT_NN const BiTree *tree) {
+BiTree *zltBiTreeLRN(const BiTree *tree) {
   BiTree *parent = tree->parent;
-  if (!parent) ZLT_UNLIKELY {
+  if (!parent) {
     return NULL;
   }
   if (tree == parent->lchd) {
@@ -65,9 +65,9 @@ BiTree *zltBiTreeLRN(ZLT_NN const BiTree *tree) {
   return parent;
 }
 
-BiTree *zltBiTreeRLN(ZLT_NN const BiTree *tree) {
+BiTree *zltBiTreeRLN(const BiTree *tree) {
   BiTree *parent = tree->parent;
-  if (!parent) ZLT_UNLIKELY {
+  if (!parent) {
     return NULL;
   }
   if (tree == parent->rchd) {
@@ -76,9 +76,9 @@ BiTree *zltBiTreeRLN(ZLT_NN const BiTree *tree) {
   return parent;
 }
 
-static BiTree *nlr(ZLT_NN const BiTree *tree, const BiTree *parent);
+static BiTree *nlr(const BiTree *tree, const BiTree *parent);
 
-BiTree *zltBiTreeNLR(ZLT_NN const BiTree *tree) {
+BiTree *zltBiTreeNLR(const BiTree *tree) {
   if (tree->lchd) {
     return tree->lchd;
   }
@@ -88,8 +88,8 @@ BiTree *zltBiTreeNLR(ZLT_NN const BiTree *tree) {
   return nlr(tree, tree->parent);
 }
 
-BiTree *nlr(ZLT_NN const BiTree *tree, const BiTree *parent) {
-  if (!parent) ZLT_UNLIKELY {
+BiTree *nlr(const BiTree *tree, const BiTree *parent) {
+  if (!parent) {
     return NULL;
   }
   if (tree == parent->lchd) {
@@ -98,9 +98,9 @@ BiTree *nlr(ZLT_NN const BiTree *tree, const BiTree *parent) {
   return nlr(parent, parent->parent);
 }
 
-static BiTree *nrl(ZLT_NN const BiTree *tree, const BiTree *parent);
+static BiTree *nrl(const BiTree *tree, const BiTree *parent);
 
-BiTree *zltBiTreeNRL(ZLT_NN const BiTree *tree) {
+BiTree *zltBiTreeNRL(const BiTree *tree) {
   if (tree->rchd) {
     return tree->rchd;
   }
@@ -110,8 +110,8 @@ BiTree *zltBiTreeNRL(ZLT_NN const BiTree *tree) {
   return nrl(tree, tree->parent);
 }
 
-BiTree *nrl(ZLT_NN const BiTree *tree, const BiTree *parent) {
-  if (!parent) ZLT_UNLIKELY {
+BiTree *nrl(const BiTree *tree, const BiTree *parent) {
+  if (!parent) {
     return NULL;
   }
   if (tree == parent->rchd) {
@@ -122,7 +122,7 @@ BiTree *nrl(ZLT_NN const BiTree *tree, const BiTree *parent) {
 // iterators end
 
 // rotations begin
-BiTree *zltBiTreeLeftRotate(ZLT_NN BiTree *pivot) {
+BiTree *zltBiTreeLeftRotate(BiTree *pivot) {
   BiTree *parent = pivot->parent;
   BiTree *rchd = pivot->rchd;
   pivot->parent = rchd;
@@ -139,7 +139,7 @@ BiTree *zltBiTreeLeftRotate(ZLT_NN BiTree *pivot) {
   return rchd;
 }
 
-BiTree *zltBiTreeRightRotate(ZLT_NN BiTree *pivot) {
+BiTree *zltBiTreeRightRotate(BiTree *pivot) {
   BiTree *parent = pivot->parent;
   BiTree *lchd = pivot->lchd;
   pivot->parent = lchd;
@@ -158,28 +158,36 @@ BiTree *zltBiTreeRightRotate(ZLT_NN BiTree *pivot) {
 // rotations end
 
 // find functions begin
-BiTree *zltBiTreeFind(const BiTree *tree, ZLT_NN zltBiTreeFinder *finder, void *data) {
-  if (!tree) ZLT_UNLIKELY {
+BiTree *zltBiTreeFind(const BiTree *tree, zltBiTreeCmpForFind *cmp, void *data) {
+  if (!tree) {
     return NULL;
   }
-  int diff = finder(data, tree);
-  if (!diff) {
+  BiTree *next;
+  int diff = cmp(data, tree);
+  if (diff < 0) {
+    next = tree->lchd;
+  } else if (diff > 0) {
+    next = tree->rchd;
+  } else {
     return tree;
   }
-  BiTree *next = diff < 0 ? tree->lchd : tree->rchd;
-  return zltBiTreeFind(next, finder, data);
+  return zltBiTreeFind(next, cmp, data);
 }
 
 // find functions end
-BiTree **zltBiTreeFindForWrite(ZLT_NN BiTree **parent, ZLT_NN BiTree **tree, ZLT_NN zltBiTreeFinder *finder, void *data) {
-  if (!*tree) ZLT_UNLIKELY {
+BiTree **zltBiTreeFindForInsert(BiTree **parent, BiTree **tree, zltBiTreeCmpForFind *cmp, void *data) {
+  if (!*tree) {
     return tree;
   }
-  int diff = finder(data, *tree);
-  if (!diff) {
+  BiTree **next;
+  int diff = cmp(data, *tree);
+  if (diff < 0) {
+    next = &(*tree)->lchd;
+  } else if (diff > 0) {
+    next = &(*tree)->rchd;
+  } else {
     return tree;
   }
   *parent = *tree;
-  BiTree *next = diff < 0 ? &(**tree).lchd : &(**tree).rchd;
-  return zltBiTreeFindForWrite(parent, next, find, data);
+  return zltBiTreeFindForInsert(parent, next, cmp, data);
 }
