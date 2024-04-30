@@ -1,22 +1,26 @@
-#ifndef MYLISPC_STRSET_H
-#define MYLISPC_STRSET_H
+#ifndef MYLISPC_STRTREE_H
+#define MYLISPC_STRTREE_H
 
-typedef struct zltStrTree zltStrTree;
+typedef struct mylispcStrTree mylispcStrTree;
 
-struct zltStrTree {
-  zltStrTree *parent;
-  zltStrTree *lchd;
-  zltStrTree *rchd;
-  const char *value;
-  size_t valueSize;
+struct mylicpcStrTree {
+  mylispcStrTree *parent;
+  mylispcStrTree *lchd;
+  mylispcStrTree *rchd;
+  const char *str;
+  size_t strSize;
 };
 
-void zltMakeStrTree(zltStrTree *dest, zltStrTree *parent, const char *value, size_t valueSize);
+void mylispcMakeStrTree(mylispcStrTree *dest, mylispcStrTree *parent, const char *str, size_t strSize);
 
-zltStrTree *zltStrTreeFind(const zltStrTree *root, const char *value, size_t valueSize);
+typedef void mylispcStrTreeDtor(mylispcStrTree *root);
 
-zltStrTree **zltStrTreeFindForInsert(zltStrTree **parent, const zltStrTree *root, const char *value, size_t valueSize);
+void mylispcStrTreeClean(mylispcStrTree *root, mylispcStrTreeDtor *dtor);
 
-zltStrTree *zltStrTreeBeforeErase(zltStrTree **root, zltStrTree *node);
+mylispcStrTree *mylispcStrTreeFind(const mylispcStrTree *root, const char *str, size_t strSize);
+
+mylispcStrTree **mylispcStrTreeFindForWrite(mylispcStrTree **parent, mylispcStrTree **root, const char *str, size_t strSize);
+
+mylispcStrTree *mylispcStrTreeBeforeErase(mylispcStrTree **root, mylispcStrTree *node);
 
 #endif
