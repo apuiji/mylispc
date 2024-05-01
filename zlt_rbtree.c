@@ -23,23 +23,17 @@ static inline void rightRotate(RBTree *pivot) {
   zltBiTreeRightRotate((BiTree *) pivot);
 }
 
-static void afterInsert(RBTree *node);
+typedef void AfterInsert(RBTree **root, RBTree *node, RBTree *parent, RBTree *gparent);
+
+static AfterInsert afterInsertLL;
+static AfterInsert afterInsertRR;
+static AfterInsert afterInsertLR;
+static AfterInsert afterInsertRL;
 
 void zltRBTreeAfterInsert(RBTree **root, RBTree *node) {
-  afterInsert(node);
-  *root = mostTop(node);
-}
-
-typedef void AfterInsert1(RBTree *node, RBTree *parent, RBTree *gparent);
-
-static AfterInsert1 afterInsertLL;
-static AfterInsert1 afterInsertRR;
-static AfterInsert1 afterInsertLR;
-static AfterInsert1 afterInsertRL;
-
-void afterInsert(RBTree *node) {
   RBTree *parent = node->parent;
   if (!parent) {
+    *root = node;
     node->red = false;
     return;
   }
@@ -52,130 +46,142 @@ void afterInsert(RBTree *node) {
     parent->red = false;
     uncle->red = false;
     gparent->red = true;
-    afterInsert(gparent);
+    zltRBTreeAfterInsert(root, gparent);
     return;
   }
-  AfterInsert1 *f;
+  AfterInsert *ai;
   if (node == parent->lchd) {
-    f = parent == gparent->lchd ? afterInsertLL : afterInsertLR;
+    ai = parent == gparent->lchd ? afterInsertLL : afterInsertLR;
   } else {
-    f = parent == gparent->lchd ? afterInsertRL : afterInsertRR;
+    ai = parent == gparent->lchd ? afterInsertRL : afterInsertRR;
   }
-  f(node, parent, gparent);
+  ai(root, node, parent, gparent);
 }
 
-//     GB        PR
+//     GB        PB
 //    /  \      /  \ 
-//   PR  UB -> NB  GB
+//   PR  UB -> NR  GR
 //  /  \          /  \ 
 // NR  SB        SB  UB
-void afterInsertLL(RBTree *node, RBTree *parent, RBTree *gparent) {
+void afterInsertLL(RBTree **root, RBTree *node, RBTree *parent, RBTree *gparent) {
   rightRotate(gparent);
-  node->red = false;
-  afterInsert(parent);
+  parent->red = false;
+  gparent->red = true;
+  if (*root == gparent) {
+    *root = parent;
+  }
 }
 
-//   GB         PR
-//  /  \       /  \ 
-// UB  PR ->  GB  NB
-//    /  \   /  \ 
-//   SB  NR UB  SB
-void afterInsertRR(RBTree *node, RBTree *parent, RBTree *gparent) {
+void afterInsertRR(RBTree **root, RBTree *node, RBTree *parent, RBTree *gparent) {
   leftRotate(gparent);
-  node->red = false;
-  afterInsert(parent);
+  parent->red = false;
+  gparent->red = true;
+  if (*root == gparent) {
+    *root = parent;
+  }
 }
 
-//   GB        GB          __NR__
-//  /  \      /  \        /      \ 
-// UB  PR -> UB  NR  ->  GB      PB
-//    /  \      /  \    /  \    /  \ 
-//   NR  SB    XB  PR  UB  XB  YB  SB
+//   GB        GB
+//  /  \      /  \ 
+// UB  PR -> UB  NR
+//    /  \      /  \ 
+//   NR  SB    XB  PR
 //  /  \          /  \ 
 // XB  YB        YB  SB
-void afterInsertLR(RBTree *node, RBTree *parent, RBTree *gparent) {
+void afterInsertLR(RBTree **root, RBTree *node, RBTree *parent, RBTree *gparent) {
   rightRotate(parent);
-  leftRotate(gparent);
-  parent->red = false;
-  afterInsert(node);
+  afterInsertRR(root, parent, node, gparent);
 }
 
-//     GB         GB        __NR__
-//    /  \       /  \      /      \ 
-//   PR  UB ->  NR  UB -> PB      GB
-//  /  \       /  \      /  \    /  \ 
-// SB  NR     PR  YB    SB  XB  YB  UB
-//    /  \   /  \ 
-//   XB  YB SB  XB
-void afterInsertRL(RBTree *node, RBTree *parent, RBTree *gparent) {
+void afterInsertRL(RBTree **root, RBTree *node, RBTree *parent, RBTree *gparent) {
   leftRotate(parent);
-  rightRotate(gparent);
-  parent->red = false;
-  afterInsert(node);
+  afterInsertLL(root, parent, node, gparent);
 }
 
-static void beforeErase(RBTree *node);
+static void beforeErase1(RBTree **root, RBTree *node);
+static void beforeErase2(RBTree **root, RBTree *node, RBTree *chd);
+static void beforeErase3(RBTree *node, RBTree *parent);
 
 void zltRBTreeBeforeErase(RBTree **root, RBTree *node) {
-  if (node->lchd) {
-    RBTree *a = mostRight(node->lchd);
-    RBTree b = *a;
-    *a = *node;
-    *node = b;
-  }
-  beforeErase(node);
-  RBTree *parent = node->parent;
-  if (!parent) {
-    *root = NULL;
-    return;
-  }
-  *root = mostTop(parent);
-  if (node == parent->lchd) {
-    parent->lchd = NULL;
-  } else {
-    parent->rchd = NULL;
-  }
-}
-
-typedef void BeforeErase1(RBTree *node);
-
-static BeforeErase1 beforeEraseL0;
-static BeforeErase1 beforeEraseR0;
-static BeforeErase1 beforeEraseL1;
-static BeforeErase1 beforeEraseR1;
-
-void beforeErase(RBTree *node) {
-  RBTree *parent = node->parent;
+  beforeErase1(root, node);
   if (node->red) {
-    return;
-  }
-  RBTree *rchd = node->rchd;
-  if (rchd) {
-    rchd->parent = parent;
-    rchd->red = false;
-    if (!parent) {
-      *root = rchd;
-    } else if (parent->lchd) {
-      parent->lchd = rchd;
+    RBTree *parent = node->parent;
+    if (node == parent->lchd) {
+      parent->lchd = NULL;
     } else {
-      parent->rchd = rchd;
+      parent->rchd = NULL;
     }
     return;
   }
-  if (!parent) {
+  if (node->lchd) {
+    beforeErase2(root, node, node->lchd);
+    return;
+  }
+  if (node->rchd) {
+    beforeErase2(root, node, node->rchd);
+    return;
+  }
+  if (!node->parent) {
     *root = NULL;
     return;
   }
-  BeforeErase *f;
-  RBTree *sibling;
+  beforeErase3(node, node->parent);
+  *root = mostTop(node);
+  RBTree *parent = node->parent;
   if (node == parent->lchd) {
-    sibling = node->rchd;
-    f = sibling->red ? beforeEraseL0 : beforeEraseL1;
+    parent->lchd = node;
   } else {
-    sibling = node->rchd;
-    f = sibling->red ? beforeEraseR0 : beforeEraseR1;
+    parent->rchd = node;
   }
-  f(root, node, sibling, parent);
+}
+
+void beforeErase1(RBTree **root, RBTree *node) {
+  RBTree *a = zltBiTreeLNR((BiTree *) node);
+  if (!a) {
+    return;
+  }
+  RBTree b = *a;
+  *a = *node;
+  *node = b;
+  if (*root == node) {
+    *root = a;
+  }
+}
+
+void beforeErase2(RBTree **root, RBTree *node, RBTree *chd) {
+  RBTree *parent = node->parent;
+  if (!parent) {
+    *root = chd;
+  } else if (node == parent->lchd) {
+    parent->lchd = chd;
+  } else {
+    parent->rchd = chd;
+  }
+  chd->parent = parent;
+  chd->red = false;
+}
+
+typedef void BeforeErase3a(RBTree *node, RBTree *sibling, RBTree *parent);
+
+static BeforeErase3a beforeErase3a1;
+static BeforeErase3a beforeErase3a1a;
+static BeforeErase3a beforeErase3a2;
+static BeforeErase3a beforeErase3a2a;
+
+void beforeErase3(RBTree *node, RBTree *parent) {
+  if (!parent) {
+    return;
+  }
+  RBTree *sibling;
+  BeforeErase3a *be3a;
+  if (node == parent->lchd) {
+    sibling = parent->rchd;
+    be3a = sibling->red ? beforeErase3a1 : beforeErase3a2;
+  } else {
+    sibling = parent->lchd;
+    be3a = sibling->red ? beforeErase3a1a : beforeErase3a2a;
+  }
+  be3a(node, sibling, parent);
 }
 
 //   PB         SB
@@ -183,50 +189,108 @@ void beforeErase(RBTree *node) {
 // NB  SR  -> PR  YB
 //    /  \   /  \ 
 //   XB  YB NB  XB
-void beforeEraseL0(RBTree **root, RBTree *node, RBTree *sibling, RBTree *parent) {
+void beforeErase3a1(RBTree *node, RBTree *sibling, RBTree *parent) {
   RBTree *x = sibling->lchd;
-  leftRotate(parent);
-  parent->red = true;
-  sibling->red = false;
-  beforeEraseL1(root, node, x, parent);
-}
-
-//     PB        SB
-//    /  \      /  \ 
-//   SR  NB -> XB  PR
-//  /  \          /  \ 
-// XB  YB        YB  NB
-void beforeEraseR0(RBTree **root, RBTree *node, RBTree *sibling, RBTree *parent) {
-  RBTree *y = sibling->rchd;
-  rightRotate(parent);
-  parent->red = true;
-  sibling->red = false;
-  beforeEraseR1(root, node, y, parent);
-}
-
-static BeforeErase beforeEraseL1a;
-static BeforeErase beforeEraseL1b;
-static BeforeErase beforeEraseL1c;
-
-void beforeEraseL1(RBTree **root, RBTree *node, RBTree *sibling, RBTree *parent) {
-  RBTree *x = sibling->lchd;
-  RBTree *y = sibling->rchd;
-  BeforeErase *f = x && x->red ? y && y->red ? beforeEraseL1a : beforeEraseL1b : beforeEraseL1c;
-  f(root, node, sibling, parent);
-}
-
-//   PC         SC
-//  /  \       /  \ 
-// NB  SB  -> PB  YB
-//    /  \   /  \ 
-//   XR  YR NB  XR
-void beforeEraseL1a(RBTree **root, RBTree *node, RBTree *sibling, RBTree *parent) {
-  RBTree *y = node->rchd;
   leftRotate(parent);
   sibling->red = parent->red;
-  parent->red = false;
-  y->red = false;
+  parent->red = true;
+  beforeErase3a2(node, x, parent);
 }
 
-static BeforeErase beforeEraseL1b;
-static BeforeErase beforeEraseL1c;
+void beforeErase3a1a(RBTree *node, RBTree *sibling, RBTree *parent) {
+  RBTree *x = sibling->rchd;
+  rightRotate(parent);
+  sibling->red = parent->red;
+  parent->red = true;
+  beforeErase3a2a(node, x, parent);
+}
+
+static void beforeErase3b1(RBTree *node, RBTree *sibling, RBTree *nephew, RBTree *parent);
+static void beforeErase3b1a(RBTree *node, RBTree *sibling, RBTree *nephew, RBTree *parent);
+static void beforeErase3b2(RBTree *node, RBTree *sibling, RBTree *nephew, RBTree *parent);
+static void beforeErase3b2a(RBTree *node, RBTree *sibling, RBTree *nephew, RBTree *parent);
+static void beforeErase3b3(RBTree *node, RBTree *sibling, RBTree *parent);
+
+void beforeErase3a2(RBTree *node, RBTree *sibling, RBTree *parent) {
+  RBTree *lnep = sibling->lchd;
+  if (lnep && lnep->red) {
+    beforeErase3b1(node, sibling, lnep, parent);
+    return;
+  }
+  RBTree *rnep = sibling->rchd;
+  if (rnep && rnep->red) {
+    beforeErase3b2(node, sibling, rnep, parent);
+    return;
+  }
+  beforeErase3b3(node, sibling, parent);
+}
+
+void beforeErase3a2a(RBTree *node, RBTree *sibling, RBTree *parent) {
+  RBTree *rnep = sibling->rchd;
+  if (rnep && rnep->red) {
+    beforeErase3b1a(node, sibling, rnep, parent);
+    return;
+  }
+  RBTree *lnep = sibling->lchd;
+  if (lnep && lnep->red) {
+    beforeErase3b2a(node, sibling, lnep, parent);
+    return;
+  }
+  beforeErase3b3(node, sibling, parent);
+}
+
+//   PC        PC          __XC__
+//  /  \      /  \        /      \ 
+// NB  SB -> NB  XR  ->  PB      SB
+//    /         /  \    /  \    /
+//   XR        UB  SB  NB  UB  VB
+//  /  \          /
+// UB  VB        VB
+void beforeErase3b1(RBTree *node, RBTree *sibling, RBTree *nephew, RBTree *parent) {
+  rightRotate(sibling);
+  leftRotate(parent);
+  nephew->red = parent->red;
+  parent->red = false;
+}
+
+void beforeErase3b1a(RBTree *node, RBTree *sibling, RBTree *nephew, RBTree *parent) {
+  leftRotate(sibling);
+  rightRotate(parent)
+  nephew->red = parent->red;
+  parent->red = false;
+}
+
+//   PC          __SC__
+//  /  \        /      \ 
+// NB  SB  ->  PB      YB
+//    /  \    /  \    /  \ 
+//   X?  YR  NB  X?  UB  VB
+//      /  \ 
+//     UB  VB
+void beforeErase3b2(RBTree *node, RBTree *sibling, RBTree *nephew, RBTree *parent) {
+  leftRotate(parent);
+  sibling->red = parent->red;
+  nephew->red = false;
+  parent->red = false;
+}
+
+void beforeErase3b2a(RBTree *node, RBTree *sibling, RBTree *nephew, RBTree *parent) {
+  rightRotate(parent);
+  sibling->red = parent->red;
+  nephew->red = false;
+  parent->red = false;
+}
+
+//   PC         PB
+//  /  \       /  \ 
+// NB  SB  -> NB  SR
+//    /  \       /  \ 
+//   XB  YB     XB  YB
+void beforeErase3b3(RBTree *node, RBTree *sibling, RBTree *parent) {
+  sibling->red = true;
+  if (parent->red) {
+    parent->red = false;
+  } else {
+    beforeErase3(parent, parent->parent);
+  }
+}
