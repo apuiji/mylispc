@@ -1,7 +1,8 @@
 #ifndef MYLISPC_H
 #define MYLISPC_H
 
-#include"strtree.h"
+#include"zlt/link.h"
+#include"zlt/rbtree.h"
 
 const char *mylispAddStr(const char *str, size_t size);
 
@@ -18,11 +19,6 @@ enum {
 };
 
 const char *mylispcHit(const char *it, const char *end);
-
-extern int mylispcLexerToken;
-extern double mylispcLexerNumVal;
-extern const char *mylispcLexerStrVal;
-extern size_t mylispcLexerStrValSize;
 
 enum {
   MYLISPC_EOF_TOKEN,
@@ -83,29 +79,30 @@ enum {
   // symbols end
 };
 
+typedef struct {
+  int token;
+  union {
+    double numVal;
+    zltString strVal;
+  };
+} mylispcLexerDest;
+
 /// @return null when bad
-const char *mylispcLexer(const char *it, const char *end);
+const char *mylispcLexer(mylispcLexerDest *dest, const char *it, const char *end);
 
-/// @return token
-int mylispcRawToken(double *numVal, const char *raw, size_t size);
+void mylispcLexerRaw(mylispcLexerDest *dest, const char *raw, size_t size);
 
-typedef struct mylispcNode mylispcNode;
-
-struct mylispcNode {
+typedef struct {
+  zltLink link;
   int clazz;
   const char *start;
-  mylispcNode *next;
-};
+} mylispcNode;
 
-void *mylispcMalloc(size_t size);
-
-#define mylispcTalloc(t) ((t *) mylispcMalloc(sizeof(t)))
-
-static inline void mylispcMakeNode(mylispcNode *dest, int clazz, const char *start) {
-  dest->clazz = clazz;
-  dest->start = start;
-  dest->next = NULL;
+static inline mylispcNode mylispcNodeMake(int clazz, const char *start) {
+  return (mylispcNode) { .clazz = clazz, start = start, .next = NULL };
 }
+
+void mylispcNodeDelete(void *node);
 
 enum {
   // parse productions begin
@@ -119,25 +116,21 @@ enum {
 };
 
 /// @return non 0 when bad
-int mylispcParse(mylispcNode **dest, const char *it, const char *end);
+int mylispcParse(void **dest, const char *it, const char *end);
 
-typedef struct mylispcSource {
-  zltStrTree base;
-  mylispcNode *parsed;
-} mylispcSource;
-
-typedef struct mylispcMacro {
-  zltStrTree base;
-  mylispcNode *body;
+typedef struct {
+  zltRBTree rbTree;
+  zltString name;
+  const zltString *params;
+  size_t paramc;
+  void *body;
 } mylispcMacro;
 
-static inline void mylispcMakeMacro(
-  mylispcMacro *dest, zltStrTree *parent, const char *name, size_t nameSize, mylispcMacro *body) {
-  zltMakeStrTree(&dest->base, parent, name, nameSize);
-  dest->body = body;
+static inline mylispcMacro mylispcMacroMake(void *parent, zltString name, const zltString *params, size_t paramc, void *body) {
+  return (mylispcMacro) { .rbtree = zltRBTreeMake(parent), .name = name, .params = params, .paramc = paramc, .body = body };
 }
 
 /// @return non 0 when bad
-int mylispcPreproc(mylispcNode **dest, mylispcMacro **macros, mylispcNode *src);
+int mylispcPreproc(void **dest, mylispcMacro **macros, void *src);
 
 #endif

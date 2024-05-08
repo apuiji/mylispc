@@ -32,37 +32,37 @@ It lineComment(It it, It end) {
   return lineComment(it + 1, end);
 }
 
-static It lexerStr(It it, It end);
+static It lexerStr(mylispcLexerDest *dest, It it, It end);
 
-static It lexerRaw(It it, It end);
+static It consumeRaw(It it, It end);
 
-It mylispcLexer(It it, It end) {
+It mylispcLexer(mylispcLexerDest *dest, It it, It end) {
   if (it == end) {
-    mylispcLexerToken = MYLISPC_EOF_TOKEN;
+    dest->token = MYLISPC_EOF_TOKEN;
     return end;
   }
   if (*it == '(') {
-    mylispcLexerToken = MYLISPC_LPAREN_TOKEN;
+    dest->token = MYLISPC_LPAREN_TOKEN;
     return it + 1;
   }
   if (*it == ')') {
-    mylispcLexerToken = MYLISPC_RPAREN_TOKEN;
+    dest->token = MYLISPC_RPAREN_TOKEN;
     return it + 1;
   }
   if (*it == '"' || *it == '\'') {
-    return lexerStr(it, end);
+    return lexerStr(dest, it, end);
   }
-  It end1 = lexerRaw(it, end);
+  It end1 = consumeRaw(it, end);
   if (end1 == it) {
     mylispcBad = MYLISPC_UNRECOGNIZED_SYMB_BAD;
     mylispcBadStart = it;
     return NULL;
   }
-  mylispcLexerToken = mylispcRawToken(&mylispcLexerNumVal, it, end1 - it);
+  mylispcLexerRaw(dest, it, end1 - it);
   return end1;
 }
 
-It lexerStr1(char *dest, size_t *left, It start, int quot, It it, It end);
+static It lexerStr1(char *dest, size_t *left, It start, int quot, It it, It end);
 
 It lexerStr(It it, It end) {
   char *s = (char *) malloc(STR_BUF_SIZE);
@@ -76,9 +76,9 @@ It lexerStr(It it, It end) {
     free(s);
     return NULL;
   }
-  mylispcLexerStrValSize = STR_BUF_SIZE - left;
-  mylispcLexerStrVal = (const char *) realloc(s, mylispcLexerStrValSize);
-  mylispcLexerToken = MYLISPC_STR_TOKEN;
+  dest->strVal.data = (const char *) realloc(s, STR_BUF_SIZE - left);
+  dest->strVal.size = STR_BUF_SIZE - left;
+  dest->token = MYLISPC_STR_TOKEN;
   return end1;
 }
 
@@ -101,14 +101,14 @@ It lexerStr1(char *dest, size_t *left, It start, int quot, It it, It end) {
   if (*it == '\\') {
     size_t n = esch(dest, it + 1, end);
     --*left;
-    return lexerStr1(dest + 1, left, quot, it + 1 + n, end);
+    return lexerStr1(dest + 1, left, start, quot, it + 1 + n, end);
   }
   *dest = *it;
   --*left;
-  return lexerStr1(dest + 1, left, quot, it + 1, end);
+  return lexerStr1(dest + 1, left, start, quot, it + 1, end);
 }
 
-static size_t esch8(char *dest, It it, It end, size_t n);
+static size_t esch8(char *dest, It it, It end, size_t left);
 static size_t esch16(char *dest, It it, It end);
 
 size_t esch(char *dest, It it, It end) {
@@ -145,34 +145,42 @@ size_t esch(char *dest, It it, It end) {
   return 0;
 }
 
-size_t esch8(char *dest, It it, It end, size_t n) {
+size_t esch8(char *dest, It it, It end, size_t left) {
   *dest = 0;
-  size_t i = 0;
-  for (; i < n && it != end && *it >= '0' && *it <= '7'; ++i, ++it) {
+  size_t n = 0;
+  for (; n < left && it != end && *it >= '0' && *it <= '7'; ++n, ++it) {
     *dest = (*dest << 3) | (*it - '0');
   }
-  return i;
+  return n;
 }
 
 size_t esch16(char *dest, It it, It end) {
-  int a;
-  int b;
-  if (end - it >= 3 && zltIsxdigit(&a, it[1]) && zltIsxdigit(&b, it[2])) {
-    *dest = (a << 4) | b;
-    return 3;
+  if (end - it < 3) {
+    goto A;
   }
+  int a = zltIsHexDigitChar(it[1]);
+  if (a < 0) {
+    goto A;
+  }
+  int b = zltIsHexDigitChar(it[2]);
+  if (b < 0) {
+    goto A;
+  }
+  *dest = (a << 4) | b;
+  return 3;
+  A:
   *dest = '\\';
   return 0;
 }
 
-It lexerRaw(It it, It end) {
+It consumeRaw(It it, It end) {
   if (it == end) {
     return end;
   }
   if (*it == '"' || *it == '\'' || *it == '(' || *it == ')' || *it == ';' || isspace(*it)) {
     return it;
   }
-  return lexerRaw(it + 1, end);
+  return consumeRaw(it + 1, end);
 }
 
 static bool isBaseInt(long *dest, It it, It end);
