@@ -185,11 +185,12 @@ It consumeRaw(It it, It end) {
 
 static bool isBaseInt(long *dest, It it, It end);
 
-int mylispcRawToken(double *numVal, const char *raw, size_t size) {
+void mylispcLexerRaw(mylispcLexerDest *dest, const char *raw, size_t size) {
   if (size < 8) {
     #define ifSymbol(r, t) \
     if (size == sizeof(r) && !strncmp(raw, r, sizeof(r))) { \
-      return t; \
+      dest->token = t; \
+      return; \
     }
     // keywords begin
     ifSymbol("callee", MYLISPC_CALLEE_TOKEN);
@@ -248,8 +249,9 @@ int mylispcRawToken(double *numVal, const char *raw, size_t size) {
   {
     long l = 0;
     if (isBaseInt(&l, raw, raw + size)) {
-      *numVal = l;
-      return MYLISPC_NUM_TOKEN;
+      dest->token = MYLISPC_NUM_TOKEN;
+      dest->numVal = l;
+      return;
     }
   }
   {
