@@ -7,8 +7,25 @@
 
 zltString mylispAddStr(zltString s);
 
+typedef struct {
+  zltString file;
+  int li;
+} mylispcPos;
+
+extern mylicpcPos mylispcPos;
+
+static inline mylispcPos mylispcPosMake(zltString file, int li) {
+  return (mylispcPos) { .file = file, .li = li };
+}
+
+typedef struct {
+  zltLink link;
+  mylispcPos pos;
+} mylispcPosStack;
+
+extern mylispcPosStack mylispcPosStackTop;
+
 extern int mylispcBad;
-extern const char *mylispcBadStart;
 
 enum {
   MYLISPC_NO_BAD,
@@ -23,6 +40,7 @@ const char *mylispcHit(const char *it, const char *end);
 
 enum {
   MYLISPC_EOF_TOKEN,
+  MYLISPC_EOL_TOKEN,
   MYLISPC_ID_TOKEN,
   MYLISPC_NUM_TOKEN,
   MYLISPC_STR_TOKEN,
@@ -46,6 +64,11 @@ enum {
   MYLISPC_POUND_INCLUDE_TOKEN,
   MYLISPC_POUND_MOVE_TOKEN,
   MYLISPC_POUND_UNDEF_TOKEN,
+  //
+  MYLISPC_POUND_LINE_TOKEN,
+  MYLISPC_POUND_POP_TOKEN,
+  MYLISPC_POUND_PUSH_TOKEN,
+  //
   // preproc operations end
   // symbols begin
   MYLISPC_EXCLAM_TOKEN,
@@ -96,11 +119,10 @@ void mylispcLexerRaw(mylispcLexerDest *dest, zltString raw);
 typedef struct {
   zltLink link;
   int clazz;
-  const char *start;
 } mylispcNode;
 
-static inline mylispcNode mylispcNodeMake(int clazz, const char *start) {
-  return (mylispcNode) { .link = zltLinkMake(NULL), .clazz = clazz, start = start };
+static inline mylispcNode mylispcNodeMake(int clazz) {
+  return (mylispcNode) { .link = zltLinkMake(), .clazz = clazz };
 }
 
 void mylispcNodeDelete(void *node);
@@ -117,18 +139,27 @@ enum {
 };
 
 /// @return non 0 when bad
-int mylispcParse(void **dest, const char *it, const char *end);
+int mylispcParse(void **dest, zltString src);
 
 typedef struct {
-  zltRBTree rbTree;
-  zltString name;
+  mylispcPos pos;
   const zltString *params;
   size_t paramc;
   void *body;
 } mylispcMacro;
 
-static inline mylispcMacro mylispcMacroMake(void *parent, zltString name, const zltString *params, size_t paramc, void *body) {
+static inline mylispcMacro mylispcMacroMake(mylispcPos pos, const zltString *params, size_t paramc, void *body) {
   return (mylispcMacro) { .rbtree = zltRBTreeMake(parent), .name = name, .params = params, .paramc = paramc, .body = body };
+}
+
+typedef struct {
+  zltRBTree rbTree;
+  zltString name;
+  mylispcMacro macro;
+} mylispcMacroTree;
+
+static inline mylispcMacroTree mylispcMacroMake(const void *parent, zltString name, mylispcMacro macro) {
+  return (mylispcMacroTree) { .rbtree = zltRBTreeMake(parent), .name = name, .macro = macro };
 }
 
 /// @return non 0 when bad

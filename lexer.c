@@ -23,13 +23,10 @@ It mylispcHit(It it, It end) {
 }
 
 It lineComment(It it, It end) {
-  if (it == end) {
-    return end;
+  while (it != end && *it != '\n') {
+    ++it;
   }
-  if (*it == '\n') {
-    return mylispcHit(it + 1, end);
-  }
-  return lineComment(it + 1, end);
+  return it;
 }
 
 static It lexerStr(mylispcLexerDest *dest, It it, It end);
@@ -40,6 +37,10 @@ It mylispcLexer(mylispcLexerDest *dest, It it, It end) {
   if (it == end) {
     dest->token = MYLISPC_EOF_TOKEN;
     return end;
+  }
+  if (*it == '\n') {
+    dest->token = MYLISPC_EOL_TOKEN;
+    return it + 1;
   }
   if (*it == '(') {
     dest->token = MYLISPC_LPAREN_TOKEN;
@@ -55,14 +56,13 @@ It mylispcLexer(mylispcLexerDest *dest, It it, It end) {
   It end1 = consumeRaw(it, end);
   if (end1 == it) {
     mylispcBad = MYLISPC_UNRECOGNIZED_SYMB_BAD;
-    mylispcBadStart = it;
     return NULL;
   }
   mylispcLexerRaw(dest, zltStrMake(it, end1 - it));
   return end1;
 }
 
-static It lexerStr1(char *dest, size_t *left, It start, int quot, It it, It end);
+static It lexerStr1(char *dest, size_t *left, int quot, It it, It end);
 
 It lexerStr(It it, It end) {
   char *s = (char *) malloc(STR_BUF_SIZE);
@@ -71,28 +71,26 @@ It lexerStr(It it, It end) {
     return NULL;
   }
   size_t left = STR_BUF_SIZE;
-  It end1 = lexerStr1(s, &left, it, *it, it + 1, end);
+  It end1 = lexerStr1(s, &left, *it, it + 1, end);
   if (!end1) {
     free(s);
     return NULL;
   }
-  dest->strVal.data = (const char *) realloc(s, STR_BUF_SIZE - left);
-  dest->strVal.size = STR_BUF_SIZE - left;
+  s = (const char *) realloc(s, STR_BUF_SIZE - left);
+  dest->strVal = zltStrMake(s, STR_BUF_SIZE - left);
   dest->token = MYLISPC_STR_TOKEN;
   return end1;
 }
 
 static size_t esch(char *dest, It it, It end);
 
-It lexerStr1(char *dest, size_t *left, It start, int quot, It it, It end) {
-  if (it == end) {
+It lexerStr1(char *dest, size_t *left, int quot, It it, It end) {
+  if (it == end || *it == '\n') {
     mylispcBad = MYLISPC_UNTERMINATED_STR_BAD;
-    mylispcBadStart = start;
     return NULL;
   }
   if (!*left) {
     mylispcBad = MYLISPC_STR_TOO_LONG_BAD;
-    mylispcBadStart = start;
     return NULL;
   }
   if (*it == quot) {
@@ -101,18 +99,18 @@ It lexerStr1(char *dest, size_t *left, It start, int quot, It it, It end) {
   if (*it == '\\') {
     size_t n = esch(dest, it + 1, end);
     --*left;
-    return lexerStr1(dest + 1, left, start, quot, it + 1 + n, end);
+    return lexerStr1(dest + 1, left, quot, it + 1 + n, end);
   }
   *dest = *it;
   --*left;
-  return lexerStr1(dest + 1, left, start, quot, it + 1, end);
+  return lexerStr1(dest + 1, left, quot, it + 1, end);
 }
 
 static size_t esch8(char *dest, It it, It end, size_t left);
 static size_t esch16(char *dest, It it, It end);
 
 size_t esch(char *dest, It it, It end) {
-  if (it == end) {
+  if (it == end || *it == '\n') {
     *dest = '\\';
     return 0;
   }
@@ -174,13 +172,10 @@ size_t esch16(char *dest, It it, It end) {
 }
 
 It consumeRaw(It it, It end) {
-  if (it == end) {
-    return end;
+  while (it != end && !strspn("\"'();", *it) && !isspace(*it)) {
+    ++it;
   }
-  if (*it == '"' || *it == '\'' || *it == '(' || *it == ')' || *it == ';' || isspace(*it)) {
-    return it;
-  }
-  return consumeRaw(it + 1, end);
+  return it;
 }
 
 static bool isBaseInt(double *dest, zltString raw);
@@ -210,7 +205,10 @@ void mylispcLexerRaw(mylispcLexerDest *dest, zltString raw) {
     ifSymbol("#def", MYLISPC_POUND_DEF_TOKEN);
     ifSymbol("#if", MYLISPC_POUND_IF_TOKEN);
     ifSymbol("#include", MYLISPC_POUND_INCLUDE_TOKEN);
+    ifSymbol("#line", MYLISPC_POUND_LINE_TOKEN);
     ifSymbol("#move", MYLISPC_POUND_MOVE_TOKEN);
+    ifSymbol("#pop", MYLISPC_POUND_POP_TOKEN);
+    ifSymbol("#push", MYLISPC_POUND_PUSH_TOKEN);
     ifSymbol("#undef", MYLISPC_POUND_UNDEF_TOKEN);
     // preproc operations end
     // symbols begin
@@ -257,45 +255,48 @@ void mylispcLexerRaw(mylispcLexerDest *dest, zltString raw) {
   return MYLISPC_ID_TOKEN;
 }
 
-static bool isBaseInt1(long *dest, It it, It end);
+static bool isBaseInt1(double *dest, It it, It end);
+static bool isBaseInt2(unsigned long *dest, It it, It end);
 
-bool isBaseInt(long *dest, It it, It end) {
+bool isBaseInt(double *dest, It it, It end) {
   if (*it == '+') {
     return isBaseInt1(dest, it + 1, end);
   }
   if (*it == '-') {
-    if (isBaseInt1(dest, it + 1, end)) {
-      *dest = -*dest;
-      return true;
+    if (!isBaseInt1(dest, it + 1, end)) {
+      return false;
     }
-    return false;
+    *dest = -*dest;
+    return true;
   }
   return isBaseInt1(dest, it, end);
 }
 
-bool isBaseInt1(long *dest, It it, It end) {
-  if (end - it < 3 || *it != '0') {
+bool isBaseInt1(double *dest, It it, It end) {
+  unsigned long l = 0;
+  if (!isBaseInt2(&l, it, end)) {
     return false;
   }
-  if (it[1] == 'B' || it[1] == 'b') {
-    char *end1;
-    *dest = strtol(it + 2, &end1, 2);
-    return end1 == end;
+  *dest = l;
+  return true;
+}
+
+bool isBaseInt2(unsigned long *dest, It it, It end) {
+  if (!(end - it >= 3 && *it == '0')) {
+    return false;
   }
-  if (it[1] == 'Q' || it[1] == 'q') {
-    char *end1;
-    *dest = strtol(it + 2, &end1, 4);
-    return end1 == end;
+  char c = it[1];
+  size_t base;
+  if (c == 'B' || c == 'b') {
+    base = 2;
+  } else if (c == 'Q' || c == 'q') {
+    base = 4;
+  } else if (c == 'O' || c == 'o') {
+    base = 8;
+  } else if (c == 'X' || c == 'x') {
+    base = 16;
+  } else {
+    return false;
   }
-  if (it[1] == 'O' || it[1] == 'o') {
-    char *end1;
-    *dest = strtol(it + 2, &end1, 8);
-    return end1 == end;
-  }
-  if (it[1] == 'X' || it[1] == 'x') {
-    char *end1;
-    *dest = strtol(it + 2, &end1, 16);
-    return end1 == end;
-  }
-  return false;
+  return !zltStrToUnsignedLong(dest, zltStrMake(it + 2, end - it - 2)).size;
 }
