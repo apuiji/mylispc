@@ -58,7 +58,7 @@ It mylispcLexer(mylispcLexerDest *dest, It it, It end) {
     mylispcBadStart = it;
     return NULL;
   }
-  mylispcLexerRaw(dest, it, end1 - it);
+  mylispcLexerRaw(dest, zltStrMake(it, end1 - it));
   return end1;
 }
 
@@ -183,12 +183,12 @@ It consumeRaw(It it, It end) {
   return consumeRaw(it + 1, end);
 }
 
-static bool isBaseInt(long *dest, It it, It end);
+static bool isBaseInt(double *dest, zltString raw);
 
-void mylispcLexerRaw(mylispcLexerDest *dest, const char *raw, size_t size) {
-  if (size < 8) {
+void mylispcLexerRaw(mylispcLexerDest *dest, zltString raw) {
+  if (raw.size < 8) {
     #define ifSymbol(r, t) \
-    if (size == sizeof(r) && !strncmp(raw, r, sizeof(r))) { \
+    if (raw.size == sizeof(r) && !strncmp(raw.data, r, sizeof(r))) { \
       dest->token = t; \
       return; \
     }
@@ -246,20 +246,13 @@ void mylispcLexerRaw(mylispcLexerDest *dest, const char *raw, size_t size) {
     // symbols end
     #undef ifSymbol
   }
-  {
-    long l = 0;
-    if (isBaseInt(&l, raw, raw + size)) {
-      dest->token = MYLISPC_NUM_TOKEN;
-      dest->numVal = l;
-      return;
-    }
+  if (isBaseInt(&dest->numVal, raw)) {
+    dest->token = MYLISPC_NUM_TOKEN;
+    return;
   }
-  {
-    char *end;
-    *numVal = strtod(raw, &end);
-    if (end == raw + size) {
-      return MYLISPC_NUM_TOKEN;
-    }
+  if (!zltStrToDouble(&dest->numVal, raw).size) {
+    dest->token = MYLISPC_NUM_TOKEN;
+    return;
   }
   return MYLISPC_ID_TOKEN;
 }

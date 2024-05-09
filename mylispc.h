@@ -3,8 +3,9 @@
 
 #include"zlt/link.h"
 #include"zlt/rbtree.h"
+#include"zlt/string.h"
 
-const char *mylispAddStr(const char *str, size_t size);
+zltString mylispAddStr(zltString s);
 
 extern int mylispcBad;
 extern const char *mylispcBadStart;
@@ -90,7 +91,7 @@ typedef struct {
 /// @return null when bad
 const char *mylispcLexer(mylispcLexerDest *dest, const char *it, const char *end);
 
-void mylispcLexerRaw(mylispcLexerDest *dest, const char *raw, size_t size);
+void mylispcLexerRaw(mylispcLexerDest *dest, zltString raw);
 
 typedef struct {
   zltLink link;
@@ -99,7 +100,7 @@ typedef struct {
 } mylispcNode;
 
 static inline mylispcNode mylispcNodeMake(int clazz, const char *start) {
-  return (mylispcNode) { .clazz = clazz, start = start, .next = NULL };
+  return (mylispcNode) { .link = zltLinkMake(NULL), .clazz = clazz, start = start };
 }
 
 void mylispcNodeDelete(void *node);
