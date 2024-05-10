@@ -5,36 +5,24 @@
 #include"zlt/rbtree.h"
 #include"zlt/string.h"
 
-zltString mylispAddStr(zltString s);
-
+// positions begin
 typedef struct {
   zltString file;
   int li;
 } mylispcPos;
 
-extern mylicpcPos mylispcPos;
-
 static inline mylispcPos mylispcPosMake(zltString file, int li) {
   return (mylispcPos) { .file = file, .li = li };
 }
 
-typedef struct {
-  zltLink link;
-  mylispcPos pos;
-} mylispcPosStack;
+extern mylicpcPos mylispcPos;
+extern mylispcPos *mylispcPosStackData;
+extern size_t mylispcPosStackSize;
+extern mylispcPos *mylispcPosStackTop;
 
-extern mylispcPosStack mylispcPosStackTop;
-
-extern int mylispcBad;
-
-enum {
-  MYLISPC_NO_BAD,
-  MYLISPC_OOM_BAD,
-  MYLISPC_STR_TOO_LONG_BAD,
-  MYLISPC_UNEXPECTED_TOKEN_BAD,
-  MYLISPC_UNTERMINATED_STR_BAD,
-  MYLISPC_UNRECOGNIZED_SYMB_BAD
-};
+bool mylispcPosPush();
+void mylispcPosPop();
+// positions end
 
 const char *mylispcHit(const char *it, const char *end);
 
@@ -122,7 +110,7 @@ typedef struct {
 } mylispcNode;
 
 static inline mylispcNode mylispcNodeMake(int clazz) {
-  return (mylispcNode) { .link = zltLinkMake(), .clazz = clazz };
+  return (mylispcNode) { .clazz = clazz };
 }
 
 void mylispcNodeDelete(void *node);
@@ -138,8 +126,7 @@ enum {
   // parse productions end
 };
 
-/// @return non 0 when bad
-int mylispcParse(void **dest, zltString src);
+bool mylispcParse(void **dest, const char *it, const char *end);
 
 typedef struct {
   mylispcPos pos;
@@ -158,11 +145,10 @@ typedef struct {
   mylispcMacro macro;
 } mylispcMacroTree;
 
-static inline mylispcMacroTree mylispcMacroMake(const void *parent, zltString name, mylispcMacro macro) {
+static inline mylispcMacroTree mylispcMacroTreeMake(const void *parent, zltString name, mylispcMacro macro) {
   return (mylispcMacroTree) { .rbtree = zltRBTreeMake(parent), .name = name, .macro = macro };
 }
 
-/// @return non 0 when bad
-int mylispcPreproc(void **dest, mylispcMacro **macros, void *src);
+bool mylispcPreproc(void **dest, mylispcMacroTree **macroTree, void *src);
 
 #endif

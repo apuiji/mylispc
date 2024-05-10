@@ -4,67 +4,83 @@
 
 typedef const char *It;
 
-typedef mylispcNode Node;
-
 /// @return node end when successful, null when unmatched, -1 when bad
-static It node(Node **dest, It start, It end);
+static It node(void **dest, It start, It end);
 /// @return next start when successful, -1 when bad
-static It nodes(Node **dest, It it, It end);
+static It nodes(void **dest, It it, It end);
 
-int mylispcParse(Node **dest, It it, It end) {
-  It end1 = nodes(dest, it, end);
-  if (end1 == (It) -1) {
-    return -1;
+bool mylispcParse(void **dest, It it, It end) {
+  It start2 = nodes(dest, it, end);
+  if (start2 == (It) -1) {
+    return false;
   }
-  It start2 = mylispcHit(end1, end);
-  mylispcLexerStrVal = NULL;
-  It end2 = mylispcLexer(start2, end);
-  free(mylispcLexerStrVal);
+  mylispcLexerDest prod2 = {};
+  It end2 = mylispcLexer(&prod2, start2, end);
   if (!end2) {
-    return -1;
+    return false;
   }
-  if (mylispcLexerToken != MYLISPC_EOF_TOKEN) {
-    mylispcBad = MYLISPC_UNEXPECTED_TOKEN_BAD;
-    mylispcBadStart = start2;
-    return -1;
+  if (prod2.token != MYLISPC_EOF_TOKEN) {
+    if (prod2.token == MYLISPC_STR_TOKEN) {
+      free(prod2.strVal.data);
+    }
+    mylispBad = MYLISP_UNEXPECTED_TOKEN_BAD;
+    return false;
   }
-  return 0;
+  return true;
 }
 
 /// @return node end when successful, -1 when bad
-static It listAtom(Node **dest, It start, It it, It end);
+static It listAtom(void **dest, It it, It end);
 
-/// @return node end when successful, -1 when bad
-static It strAtom(Node **dest, It start, It end);
-
-It node(Node **dest, It start, It end) {
-  It end1 = mylispcLexer(start, end);
-  if (mylispcLexerToken == MYLISPC_EOF_TOKEN || mylispcLexerToken == MYLISPC_RPAREN_TOKEN) {
+It node(void **dest, It start, It end) {
+  mylispcLexerDest prod1 = {};
+  It end1 = mylispcLexer(&prod1, start, end);
+  if (prod1.token == MYLISPC_EOF_TOKEN || prod1.token == MYLISPC_RPAREN_TOKEN) {
     return NULL;
   }
-  if (mylispcLexerToken == MYLISPC_ID_TOKEN) {
-    mylispcIDAtom *a = mylispcTalloc(mylispcIDAtom);
+  if (prod1.token == MYLISPC_ID_TOKEN) {
+    mylispcIDAtom *a = zltTypeAlloc(mylispcIDAtom);
     if (!a) {
       return (It) -1;
     }
-    mylispcMakeIDAtom(a, start, end1 - start);
-    *dest = (Node *) a;
+    zltString id = mylispAddStr(zltStrMakeBE(start, end1));
+    if (!id.data) {
+      return (It) -1;
+    }
+    *a = mylispcIDAtomMake(id);
+    *dest = a;
     return end1;
   }
-  if (mylispcLexerToken == MYLISPC_NUM_TOKEN) {
-    mylispcNumAtom *a = mylispcTalloc(mylispcNumAtom);
+  if (prod1.token == MYLISPC_NUM_TOKEN) {
+    mylispcNumAtom *a = zltTypeAlloc(mylispcNumAtom);
     if (!a) {
       return (It) -1;
     }
-    mylispcMakeNumAtom(a, start, end1 - start, mylispcLexerNumVal);
-    *dest = (Node *) a;
+    zltString raw = mylispAddStr(zltStrMakeBE(start, end1));
+    if (!raw.data) {
+      return (It) -1;
+    }
+    *a = mylispcNumAtomMake(raw, prod1.numVal);
+    *dest = a;
     return end1;
   }
-  if (mylispcLexerToken == MYLISPC_STR_TOKEN) {
-    return strAtom(dest, start, end1);
+  if (prod1.token == MYLISPC_STR_TOKEN) {
+    mylispcStrAtom *a = zltTypeAlloc(mylispcStrAtom);
+    if (!a) {
+      free(prod1.strVal.data);
+      return (It) -1;
+    }
+    zltString s = mylispAddStr(prod1.strVal);
+    if (!s.data) {
+      free(prod1.strVal.data);
+      return (It) -1;
+    }
+    *a = mylispcStrAtomMake(s);
+    *dest = a;
+    return end1;
   }
-  if (mylispcLexerToken == MYLISPC_LPAREN_TOKEN) {
-    return listAtom(dest, start, end1, end);
+  if (prod1.token == MYLISPC_LPAREN_TOKEN) {
+    return listAtom(dest, end1, end);
   }
   mylispcTokenAtom *a = mylispcTalloc(mylispcTokenAtom);
   if (!a) {

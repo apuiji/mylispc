@@ -1,6 +1,7 @@
 #include<ctype.h>
 #include<stdlib.h>
 #include<string.h>
+#include"mylisp/mylisp.h"
 #include"mylispc.h"
 
 #define STR_BUF_SIZE 256
@@ -55,10 +56,10 @@ It mylispcLexer(mylispcLexerDest *dest, It it, It end) {
   }
   It end1 = consumeRaw(it, end);
   if (end1 == it) {
-    mylispcBad = MYLISPC_UNRECOGNIZED_SYMB_BAD;
+    mylispBad = MYLISP_UNRECOGNIZED_SYMB_BAD;
     return NULL;
   }
-  mylispcLexerRaw(dest, zltStrMake(it, end1 - it));
+  mylispcLexerRaw(dest, zltStrMakeBE(it, end1));
   return end1;
 }
 
@@ -67,7 +68,7 @@ static It lexerStr1(char *dest, size_t *left, int quot, It it, It end);
 It lexerStr(It it, It end) {
   char *s = (char *) malloc(STR_BUF_SIZE);
   if (!s) {
-    mylispcBad = MYLISPC_OOM_BAD;
+    mylispBad = MYLISP_OOM_BAD;
     return NULL;
   }
   size_t left = STR_BUF_SIZE;
@@ -86,11 +87,11 @@ static size_t esch(char *dest, It it, It end);
 
 It lexerStr1(char *dest, size_t *left, int quot, It it, It end) {
   if (it == end || *it == '\n') {
-    mylispcBad = MYLISPC_UNTERMINATED_STR_BAD;
+    mylispBad = MYLISP_UNTERMINATED_STR_BAD;
     return NULL;
   }
   if (!*left) {
-    mylispcBad = MYLISPC_STR_TOO_LONG_BAD;
+    mylispBad = MYLISP_STR_TOO_LONG_BAD;
     return NULL;
   }
   if (*it == quot) {
@@ -298,5 +299,5 @@ bool isBaseInt2(unsigned long *dest, It it, It end) {
   } else {
     return false;
   }
-  return !zltStrToUnsignedLong(dest, zltStrMake(it + 2, end - it - 2)).size;
+  return !zltStrToUnsignedLong(dest, zltStrMakeBE(it + 2, end)).size;
 }
