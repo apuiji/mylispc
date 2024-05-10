@@ -114,6 +114,7 @@ static inline mylispcNode mylispcNodeMake(int clazz) {
 }
 
 void mylispcNodeDelete(void *node);
+void mylispcNodeClean(void *node);
 
 enum {
   // parse productions begin
