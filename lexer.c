@@ -3,6 +3,7 @@
 #include<string.h>
 #include"mylisp/mylisp.h"
 #include"mylispc.h"
+#include"token.h"
 
 #define STR_BUF_SIZE 256
 
@@ -56,10 +57,10 @@ It mylispcLexer(mylispcLexerDest *dest, It it, It end) {
   }
   It end1 = consumeRaw(it, end);
   if (end1 == it) {
-    mylispBad = MYLISP_UNRECOGNIZED_SYMB_BAD;
+    mylispBad = MYLISPC_UNRECOGNIZED_SYMB_BAD;
     return NULL;
   }
-  mylispcLexerRaw(dest, zltStrMakeBE(it, end1));
+  dest->token = mylispcTokenOfRaw(&dest->numVal, zltStrMakeBE(it, end1));
   return end1;
 }
 
@@ -87,11 +88,11 @@ static size_t esch(char *dest, It it, It end);
 
 It lexerStr1(char *dest, size_t *left, int quot, It it, It end) {
   if (it == end || *it == '\n') {
-    mylispBad = MYLISP_UNTERMINATED_STR_BAD;
+    mylispBad = MYLISPC_UNTERMINATED_STR_BAD;
     return NULL;
   }
   if (!*left) {
-    mylispBad = MYLISP_STR_TOO_LONG_BAD;
+    mylispBad = MYLISPC_STR_TOO_LONG_BAD;
     return NULL;
   }
   if (*it == quot) {
@@ -177,127 +178,4 @@ It consumeRaw(It it, It end) {
     ++it;
   }
   return it;
-}
-
-static bool isBaseInt(double *dest, zltString raw);
-
-void mylispcLexerRaw(mylispcLexerDest *dest, zltString raw) {
-  if (raw.size < 8) {
-    #define ifSymbol(r, t) \
-    if (raw.size == sizeof(r) && !strncmp(raw.data, r, sizeof(r))) { \
-      dest->token = t; \
-      return; \
-    }
-    // keywords begin
-    ifSymbol("callee", MYLISPC_CALLEE_TOKEN);
-    ifSymbol("def", MYLISPC_DEF_TOKEN);
-    ifSymbol("defer", MYLISPC_DEFER_TOKEN);
-    ifSymbol("forward", MYLISPC_FORWARD_TOKEN);
-    ifSymbol("guard", MYLISPC_GUARD_TOKEN);
-    ifSymbol("if", MYLISPC_IF_TOKEN);
-    ifSymbol("length", MYLISPC_LENGTH_TOKEN);
-    ifSymbol("return", MYLISPC_RETURN_TOKEN);
-    ifSymbol("throw", MYLISPC_THROW_TOKEN);
-    ifSymbol("try", MYLISPC_TRY_TOKEN);
-    // keywords end
-    // preproc operations begin
-    ifSymbol("#", MYLISPC_POUND_TOKEN);
-    ifSymbol("##", MYLISPC_POUND2_TOKEN);
-    ifSymbol("#def", MYLISPC_POUND_DEF_TOKEN);
-    ifSymbol("#if", MYLISPC_POUND_IF_TOKEN);
-    ifSymbol("#include", MYLISPC_POUND_INCLUDE_TOKEN);
-    ifSymbol("#line", MYLISPC_POUND_LINE_TOKEN);
-    ifSymbol("#move", MYLISPC_POUND_MOVE_TOKEN);
-    ifSymbol("#pop", MYLISPC_POUND_POP_TOKEN);
-    ifSymbol("#push", MYLISPC_POUND_PUSH_TOKEN);
-    ifSymbol("#undef", MYLISPC_POUND_UNDEF_TOKEN);
-    // preproc operations end
-    // symbols begin
-    ifSymbol("!", MYLISPC_EXCLAM_TOKEN);
-    ifSymbol("%", MYLISPC_PERCENT_TOKEN);
-    ifSymbol("&&", MYLISPC_AMP2_TOKEN);
-    ifSymbol("&", MYLISPC_AMP_TOKEN);
-    ifSymbol("(", MYLISPC_LPAREN_TOKEN);
-    ifSymbol(")", MYLISPC_RPAREN_TOKEN);
-    ifSymbol("**", MYLISPC_ASTERISK2_TOKEN);
-    ifSymbol("*", MYLISPC_ASTERISK_TOKEN);
-    ifSymbol("+", MYLISPC_PLUS_TOKEN);
-    ifSymbol(",", MYLISPC_COMMA_TOKEN);
-    ifSymbol("-", MYLISPC_MINUS_TOKEN);
-    ifSymbol(".", MYLISPC_DOT_TOKEN);
-    ifSymbol("/", MYLISPC_SLASH_TOKEN);
-    ifSymbol("<<", MYLISPC_LT2_TOKEN);
-    ifSymbol("<=>", MYLISPC_LT_EQ_GT_TOKEN);
-    ifSymbol("<=", MYLISPC_LT_EQ_TOKEN);
-    ifSymbol("<", MYLISPC_LT_TOKEN);
-    ifSymbol("==", MYLISPC_EQ2_TOKEN);
-    ifSymbol("=", MYLISPC_EQ_TOKEN);
-    ifSymbol(">=", MYLISPC_GT_EQ_TOKEN);
-    ifSymbol(">>>", MYLISPC_GT3_TOKEN);
-    ifSymbol(">>", MYLISPC_GT2_TOKEN);
-    ifSymbol(">", MYLISPC_GT_TOKEN);
-    ifSymbol("@", MYLISPC_AT_TOKEN);
-    ifSymbol("^^", MYLISPC_CARET2_TOKEN);
-    ifSymbol("^", MYLISPC_CARET_TOKEN);
-    ifSymbol("||", MYLISPC_VERTICAL2_TOKEN);
-    ifSymbol("|", MYLISPC_VERTICAL_TOKEN);
-    ifSymbol("~", MYLISPC_TILDE_TOKEN);
-    // symbols end
-    #undef ifSymbol
-  }
-  if (isBaseInt(&dest->numVal, raw)) {
-    dest->token = MYLISPC_NUM_TOKEN;
-    return;
-  }
-  if (!zltStrToDouble(&dest->numVal, raw).size) {
-    dest->token = MYLISPC_NUM_TOKEN;
-    return;
-  }
-  return MYLISPC_ID_TOKEN;
-}
-
-static bool isBaseInt1(double *dest, It it, It end);
-static bool isBaseInt2(unsigned long *dest, It it, It end);
-
-bool isBaseInt(double *dest, It it, It end) {
-  if (*it == '+') {
-    return isBaseInt1(dest, it + 1, end);
-  }
-  if (*it == '-') {
-    if (!isBaseInt1(dest, it + 1, end)) {
-      return false;
-    }
-    *dest = -*dest;
-    return true;
-  }
-  return isBaseInt1(dest, it, end);
-}
-
-bool isBaseInt1(double *dest, It it, It end) {
-  unsigned long l = 0;
-  if (!isBaseInt2(&l, it, end)) {
-    return false;
-  }
-  *dest = l;
-  return true;
-}
-
-bool isBaseInt2(unsigned long *dest, It it, It end) {
-  if (!(end - it >= 3 && *it == '0')) {
-    return false;
-  }
-  char c = it[1];
-  size_t base;
-  if (c == 'B' || c == 'b') {
-    base = 2;
-  } else if (c == 'Q' || c == 'q') {
-    base = 4;
-  } else if (c == 'O' || c == 'o') {
-    base = 8;
-  } else if (c == 'X' || c == 'x') {
-    base = 16;
-  } else {
-    return false;
-  }
-  return !zltStrToUnsignedLong(dest, zltStrMakeBE(it + 2, end)).size;
 }

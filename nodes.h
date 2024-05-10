@@ -6,16 +6,10 @@
 typedef struct {
   mylispcNode node;
   zltString raw;
-} mylispcRawAtom;
-
-static inline mylispcRawAtom mylispcRawAtomMake(int clazz, zltString raw) {
-  return (mylispcRawAtom) { .node = mylispcNodeMake(clazz), .raw = raw };
-}
-
-typedef mylispcRawAtom mylispcIDAtom;
+} mylispcIDAtom;
 
 static inline mylispcIDAtom mylispcIDAtomMake(zltString raw) {
-  return mylispcRawAtomMake(MYLISPC_ID_ATOM_CLASS, raw);
+  return (mylispcRawAtom) { .node = mylispcNodeMake(MYLISPC_ID_ATOM_CLASS), .raw = raw };
 }
 
 typedef struct {
@@ -28,12 +22,13 @@ static inline mylispcListAtom mylispcListAtomMake(void *first) {
 }
 
 typedef struct {
-  mylispcRawAtom rawAtom;
+  mylispcNode node;
+  zltString raw;
   double value;
 } mylispcNumAtom;
 
 static inline mylispcNumAtom mylispcNumAtomMake(zltString raw, double value) {
-  return (mylispcNumAtom) { .rawAtom = mylispcRawAtomMake(MYLISPC_NUM_ATOM_CLASS, raw), .value = value };
+  return (mylispcNumAtom) { .node = mylispcNodeMake(MYLISPC_NUM_ATOM_CLASS), .raw = raw, .value = value };
 }
 
 typedef struct {
@@ -46,10 +41,12 @@ static inline mylispcStrAtom mylispcStrAtomMake(zltString value) {
 }
 
 typedef struct {
-  mylispcRawAtom rawAtom;
+  mylispcNode node;
   int token;
 } mylispcTokenAtom;
 
-mylispcTokenAtom mylispcTokenAtomMake(int token);
+static inline mylispcTokenAtom mylispcTokenAtomMake(int token) {
+  return (mylispcTokenAtom) { .node = mylispcNodeMake(MYLISPC_TOKEN_ATOM_CLASS), .token = token };
+}
 
 #endif

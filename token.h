@@ -27,13 +27,11 @@ enum {
   MYLISPC_POUND_DEF_TOKEN,
   MYLISPC_POUND_IF_TOKEN,
   MYLISPC_POUND_INCLUDE_TOKEN,
-  MYLISPC_POUND_MOVE_TOKEN,
-  MYLISPC_POUND_UNDEF_TOKEN,
-  //
   MYLISPC_POUND_LINE_TOKEN,
+  MYLISPC_POUND_MOVE_TOKEN,
   MYLISPC_POUND_POP_TOKEN,
   MYLISPC_POUND_PUSH_TOKEN,
-  //
+  MYLISPC_POUND_UNDEF_TOKEN,
   // preproc operations end
   // symbols begin
   MYLISPC_EXCLAM_TOKEN,
@@ -72,7 +70,7 @@ enum {
 /// @return token
 int mylispcTokenOfRaw(double *numVal, zltString raw);
 
-/// @return raw when keyword/preproc operations/symbol token
+/// @return raw when keyword/preproc-operation/symbol token
 zltString mylispcRawOfToken(int token);
 
 #endif

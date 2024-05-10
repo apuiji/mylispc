@@ -23,7 +23,7 @@ bool mylispcParse(void **dest, It it, It end) {
     if (prod2.token == MYLISPC_STR_TOKEN) {
       free(prod2.strVal.data);
     }
-    mylispBad = MYLISP_UNEXPECTED_TOKEN_BAD;
+    mylispBad = MYLISPC_UNEXPECTED_TOKEN_BAD;
     return false;
   }
   return true;
@@ -105,18 +105,17 @@ It listAtom(void **dest, It it, It end) {
     goto BAD1;
   }
   void *first = NULL;
-  It end1 = nodes(&first, it, end);
-  if (end1 == (It) -1) {
+  It start2 = nodes(&first, it, end);
+  if (start2 == (It) -1) {
     goto BAD2;
   }
-  It start2 = mylispcHit(end1, end);
   mylispcLexerProd prod2 = {};
   It end2 = mylispcLexer(&prod2, start2, end);
   if (!end2) {
     goto BAD2;
   }
   if (prod2.token != MYLISPC_RPAREN_TOKEN) {
-    mylispBad = MYLISP_UNEXPECTED_TOKEN_BAD;
+    mylispBad = MYLISPC_UNEXPECTED_TOKEN_BAD;
     if (prod2.token == MYLISPC_STR_TOKEN) {
       free(prod2.strVal.data);
     }

@@ -53,12 +53,11 @@ void mylispcNodeClean(void *node);
 
 enum {
   // parse productions begin
-  MYLISPC_RAW_ATOM_CLASS = 0x100,
   MYLISPC_ID_ATOM_CLASS,
+  MYLISPC_LIST_ATOM_CLASS,
   MYLISPC_NUM_ATOM_CLASS,
-  MYLISPC_TOKEN_ATOM_CLASS,
-  MYLISPC_LIST_ATOM_CLASS = 1,
-  MYLISPC_STR_ATOM_CLASS
+  MYLISPC_STR_ATOM_CLASS,
+  MYLISPC_TOKEN_ATOM_CLASS
   // parse productions end
 };
 
