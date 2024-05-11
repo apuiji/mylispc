@@ -9,7 +9,7 @@ typedef struct {
 } mylispcIDAtom;
 
 static inline mylispcIDAtom mylispcIDAtomMake(zltString raw) {
-  return (mylispcRawAtom) { .node = mylispcNodeMake(MYLISPC_ID_ATOM_CLASS), .raw = raw };
+  return (mylispcIDAtom) { .node = mylispcNodeMake(MYLISPC_ID_ATOM_CLASS), .raw = raw };
 }
 
 typedef struct {

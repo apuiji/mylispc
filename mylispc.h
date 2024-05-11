@@ -2,7 +2,6 @@
 #define MYLISPC_H
 
 #include"zlt/link.h"
-#include"zlt/rbtree.h"
 #include"zlt/string.h"
 
 // positions begin
@@ -15,23 +14,26 @@ static inline mylispcPos mylispcPosMake(zltString file, int li) {
   return (mylispcPos) { .file = file, .li = li };
 }
 
-extern mylicpcPos mylispcPos;
-extern mylispcPos *mylispcPosStackData;
-extern size_t mylispcPosStackSize;
-extern mylispcPos *mylispcPosStackTop;
+typedef struct {
+  mylispcPos *data;
+  mylispcPos *top;
+  size_t left;
+} mylispcPosStack;
 
-bool mylispcPosPush();
-void mylispcPosPop();
+static inline mylispcPosStack mylispcPosStackMake(mylispcPos *data, size_t size) {
+  return (mylispcPosStack) { .data = data, .top = data, .left = size };
+}
+
+bool mylispcPosPush(mylispcPosStack *k, const mylispcPos *pos);
+mylispcPos mylispcPosPop(mylispcPosStack *k);
 // positions end
 
 const char *mylispcHit(const char *it, const char *end);
 
 typedef struct {
   int token;
-  union {
-    double numVal;
-    zltString strVal;
-  };
+  double numVal;
+  zltString strVal;
 } mylispcLexerDest;
 
 /// @return null when bad
@@ -61,7 +63,7 @@ enum {
   // parse productions end
 };
 
-bool mylispcParse(void **dest, const char *it, const char *end);
+bool mylispcParse(void **dest, mylispcPos *pos, const char *it, const char *end);
 
 typedef struct {
   mylispcPos pos;
@@ -71,7 +73,7 @@ typedef struct {
 } mylispcMacro;
 
 static inline mylispcMacro mylispcMacroMake(mylispcPos pos, const zltString *params, size_t paramc, void *body) {
-  return (mylispcMacro) { .rbtree = zltRBTreeMake(parent), .name = name, .params = params, .paramc = paramc, .body = body };
+  return (mylispcMacro) { .pos = pos, .params = params, .paramc = paramc, .body = body };
 }
 
 typedef struct {
@@ -81,9 +83,10 @@ typedef struct {
 } mylispcMacroTree;
 
 static inline mylispcMacroTree mylispcMacroTreeMake(const void *parent, zltString name, mylispcMacro macro) {
-  return (mylispcMacroTree) { .rbtree = zltRBTreeMake(parent), .name = name, .macro = macro };
+  return (mylispcMacroTree) { .rbTree = zltRBTreeMake(parent), .name = name, .macro = macro };
 }
 
-bool mylispcPreproc(void **dest, mylispcMacroTree **macroTree, void *src);
+/// @return null when bad
+void **mylispcPreproc(void **dest, mylispcPosStack *posk, mylispcMacroTree **macroTree, const void *src);
 
 #endif

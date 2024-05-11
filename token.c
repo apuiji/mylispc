@@ -86,7 +86,7 @@ bool isBaseInt(long *dest, zltString raw) {
   if (*raw.data == '+') {
     return isBaseInt1((unsigned long *) dest, zltStrForward(raw, 1));
   }
-  if (*it == '-') {
+  if (*raw.data == '-') {
     if (!isBaseInt1((unsigned long *) dest, zltStrForward(raw, 1))) {
       return false;
     }
@@ -113,7 +113,7 @@ bool isBaseInt1(unsigned long *dest, zltString raw) {
   } else {
     return false;
   }
-  return !zltStrToUnsignedLong(dest, zltStrForward(raw, 2)).size;
+  return !zltStrToUnsignedLong(dest, zltStrForward(raw, 2), base).size;
 }
 
 zltString mylispcRawOfToken(int token) {

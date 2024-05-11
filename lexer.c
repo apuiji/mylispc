@@ -66,7 +66,7 @@ It mylispcLexer(mylispcLexerDest *dest, It it, It end) {
 
 static It lexerStr1(char *dest, size_t *left, int quot, It it, It end);
 
-It lexerStr(It it, It end) {
+It lexerStr(mylispcLexerDest *dest, It it, It end) {
   char *s = (char *) malloc(STR_BUF_SIZE);
   if (!s) {
     mylispBad = MYLISP_OOM_BAD;
@@ -78,7 +78,7 @@ It lexerStr(It it, It end) {
     free(s);
     return NULL;
   }
-  s = (const char *) realloc(s, STR_BUF_SIZE - left);
+  s = (char *) realloc(s, STR_BUF_SIZE - left);
   dest->strVal = zltStrMake(s, STR_BUF_SIZE - left);
   dest->token = MYLISPC_STR_TOKEN;
   return end1;
@@ -158,11 +158,11 @@ size_t esch16(char *dest, It it, It end) {
   if (end - it < 3) {
     goto A;
   }
-  int a = zltIsHexDigitChar(it[1]);
+  int a = zltIsBasedDigitChar(it[1], 16);
   if (a < 0) {
     goto A;
   }
-  int b = zltIsHexDigitChar(it[2]);
+  int b = zltIsBasedDigitChar(it[2], 16);
   if (b < 0) {
     goto A;
   }
@@ -174,7 +174,7 @@ size_t esch16(char *dest, It it, It end) {
 }
 
 It consumeRaw(It it, It end) {
-  while (it != end && !strspn("\"'();", *it) && !isspace(*it)) {
+  while (it != end && !strchr("\"'();", *it) && !isspace(*it)) {
     ++it;
   }
   return it;
