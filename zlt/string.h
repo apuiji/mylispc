@@ -18,6 +18,8 @@ typedef struct {
   size_t size;
 } zltString;
 
+#define zltStrMemb(p, m) zltMemb(p, zltString, m)
+
 static inline zltString zltStrMake(const char *data, size_t size) {
   return (zltString) { .data = (char *) data, .size = size };
 }
