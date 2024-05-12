@@ -36,6 +36,6 @@ static inline mylispcMacroTree **mylispcMacroTreeFindForInsert(void **parent, vo
 }
 
 /// @return null when bad
-void **mylispcPreproc(void **dest, mylispcPosStack *posk, mylispcMacroTree **macroTree, const void *src);
+void **mylispcPreproc(void **dest, mylispcPosStack *posk, mylispcMacroTree **macroTree, void **src);
 
 #endif

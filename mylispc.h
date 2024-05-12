@@ -51,10 +51,14 @@ static inline mylispcNode mylispcNodeMake(int clazz) {
 }
 
 void mylispcNodeDelete(void *node);
-void mylispcNodeClean(void *node);
+
+static inline void mylispcNodeClean(void *node, const void *end) {
+  zltLinkClean(node, end, mylispcNodeDelete);
+}
 
 enum {
   // parse productions begin
+  MYLISPC_EOL_ATOM_CLASS = 1,
   MYLISPC_ID_ATOM_CLASS,
   MYLISPC_LIST_ATOM_CLASS,
   MYLISPC_NUM_ATOM_CLASS,

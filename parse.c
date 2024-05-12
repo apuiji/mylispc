@@ -44,6 +44,17 @@ It node(void **dest, mylispcPos *pos, It start, It end) {
   if (prod1.token == MYLISPC_EOF_TOKEN || prod1.token == MYLISPC_RPAREN_TOKEN) {
     return NULL;
   }
+  if (prod1.token == MYLISPC_EOL_TOKEN) {
+    mylispcNode *a = zltTypeAlloc(mylispcNode);
+    if (!a) {
+      mylispBad = MYLISP_OOM_BAD;
+      return (It) -1;
+    }
+    *a = mylispcNodeMake(MYLISPC_EOL_ATOM_CLASS);
+    *dest = a;
+    ++pos->li;
+    return end1;
+  }
   if (prod1.token == MYLISPC_ID_TOKEN) {
     mylispcIDAtom *a = zltTypeAlloc(mylispcIDAtom);
     if (!a) {
@@ -96,9 +107,6 @@ It node(void **dest, mylispcPos *pos, It start, It end) {
     mylispBad = MYLISP_OOM_BAD;
     return (It) -1;
   }
-  if (prod1.token == MYLISPC_EOL_TOKEN) {
-    ++pos->li;
-  }
   *a = mylispcTokenAtomMake(prod1.token);
   *dest = a;
   return end1;
@@ -129,7 +137,7 @@ It listAtom(void **dest, mylispcPos *pos, It it, It end) {
   *dest = a;
   return end2;
   BAD2:
-  mylispcNodeClean(first);
+  mylispcNodeClean(first, NULL);
   free(a);
   BAD1:
   return (It) -1;
