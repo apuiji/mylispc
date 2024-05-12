@@ -1,20 +1,10 @@
 #include<string.h>
+#include"nodes.h"
 #include"preproc.h"
 
-int mylispcMacroTreeCmpForFind(const void *data, const void *tree) {
-  const zltString *name = &zltMemb(tree, mylispcMacroTree, name);
-  if (zltMemb(data, zltString, size) < name->size) {
-    return -1;
-  }
-  if (zltMemb(data, zltString, size) > name->size) {
-    return 1;
-  }
-  return strncmp(zltMemb(data, zltString, data), name->data, name->size);
-}
+static void **preprocList(void **dest, mylispxPosStack *posk, mylispcMacroTree **macroTree, void **src, void **first);
 
-static void **preprocList(void **dest, mylispcPosStack *posk, mylispcMacroTree *macroTree, void **src, void **first);
-
-void **mylispcPreproc(void **dest, mylispcPosStack *posk, mylispcMacroTree *macroTree, void **src) {
+void **mylispcPreproc(void **dest, mylispxPosStack *posk, mylispcMacroTree **macroTree, void **src) {
   if (!*src) {
     return dest;
   }
@@ -30,9 +20,9 @@ void **mylispcPreproc(void **dest, mylispcPosStack *posk, mylispcMacroTree *macr
 }
 
 static void **macroExpand(
-  void **dest, mylispcPosStack *posk, mylispcMacroTree *macroTree, const mylispcMacro *macro, const void *src);
+  void **dest, mylispxPosStack *posk, mylispcMacroTree **macroTree, const mylispcMacro *macro, const void *src);
 
-void **preprocList(void **dest, mylispcPosStack *posk, mylispcMacroTree *macroTree, void **src, void **first) {
+void **preprocList(void **dest, mylispxPosStack *posk, mylispcMacroTree **macroTree, void **src, void **first) {
   if (!*first) {
     void **next = zltLinkPush(dest, zltLinkPop(src));
     return mylispcPreproc(next, posk, macroTree, src);
@@ -70,28 +60,35 @@ void **preprocList(void **dest, mylispcPosStack *posk, mylispcMacroTree *macroTr
     return preprocList(dest, posk, macroTree, src, first1);
   }
   A:
-  void *first1 = NULL;
-  if (!mylispcPreproc(&first1, posk, macroTree, first)) {
-    mylispcNodeClean(first1, NULL);
-    return NULL;
+  {
+    void *first1 = NULL;
+    if (!mylispcPreproc(&first1, posk, macroTree, first)) {
+      mylispcNodeClean(first1, NULL);
+      return NULL;
+    }
+    zltMemb(*src, mylispcListAtom, first) = first1;
+    void **next = zltLinkPush(dest, zltLinkPop(src));
+    return mylispcPreproc(next, posk, macroTree, src);
   }
-  zltMemb(*src, mylispcListAtom, first) = first1;
-  void **next = zltLinkPush(dest, zltLinkPop(src));
-  return mylispcPreproc(next, posk, macroTree, src);
 }
 
 typedef struct {
-  zltRBTree rbTree;
-  zltString name;
+  zltStrTree strTree;
   void *node;
 } MacroExpTree;
 
+static inline MacroExpTree macroExpTreeMake(const void *parent, zltString name, void *node) {
+  return (MacroExpTreeMake) { .strTree = zltStrTreeMake(parent, name), .node = node };
+}
 
+static bool macroExpTreeMake1(MacroExpTree **dest, const void *src);
 
 void **macroExpand(
-  void **dest, mylispcPosStack *posk, mylispcMacroTree *macroTree, const mylispcMacro *macro, const void *src) {
+  void **dest, mylispxPosStack *posk, mylispcMacroTree **macroTree, const mylispcMacro *macro, const void *src) {
   ;
 }
+
+bool macroExpTreeMake1(MacroExpTree **dest, const void *src) {}
 
 static bool cloneEmptyListAtom(void **dest);
 static bool cloneEOLAtom(void **dest);
@@ -102,7 +99,7 @@ static bool cloneStrAtom(void **dest, const mylispcStrAtom *src);
 static bool cloneTokenAtom(void **dest, const mylispcTokenAtom *src);
 static void **clones(void **dest, const void *src);
 
-void **mylispcPreproc(void **dest, mylispcPosStack *posk, mylispcMacroTree **macroTree, const void *src) {
+void **mylispcPreproc(void **dest, mylispxPosStack *posk, mylispcMacroTree **macroTree, const void *src) {
   if (!src) {
     return dest;
   }
@@ -250,10 +247,10 @@ void **clones(void **dest, const void *src) {
 }
 
 static void **macroExpand(
-  void **dest, mylispcPosStack *posk, mylispcMacroTree *macroTree, mylispcMacro *macro, const void *src);
-static void **preprocList1(void **dest, mylispcPosStack *posk, mylispcMacroTree *macroTree, const void *src);
+  void **dest, mylispxPosStack *posk, mylispcMacroTree *macroTree, mylispcMacro *macro, const void *src);
+static void **preprocList1(void **dest, mylispxPosStack *posk, mylispcMacroTree *macroTree, const void *src);
 
-void **preprocList(void **dest, mylispcPosStack *posk, mylispcMacroTree *macroTree, const void *src) {
+void **preprocList(void **dest, mylispxPosStack *posk, mylispcMacroTree *macroTree, const void *src) {
   if (!src) {
     return cloneEmptyListAtom(dest) ? dest : NULL;
   }

@@ -1,13 +1,15 @@
 include Makefile
 
-mylispc: $(addprefix linuxdbg/, ${OBJS})
+DEST = linuxdbg
+
+${DEST}/mylispc: $(addprefix ${DEST}/, ${OBJS})
 	echo 123
 
-linuxdbg/%.o: %.c ${HEADS}
+${DEST}/%.o: %.c ${HEADS}
 	gcc $< -c -g -I . -O2 -o $@
 
 clean:
-	touch linuxdbg/a.o
-	rm linuxdbg/*.o
+	touch ${DEST}/mylispc ${DEST}/a.o
+	rm ${DEST}/mylispc ${DEST}/*.o
 
 .PHONY: clean

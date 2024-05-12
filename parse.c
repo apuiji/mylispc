@@ -1,15 +1,15 @@
 #include<stdlib.h>
 #include"mylisp/mylisp.h"
-#include"mylispc.h"
 #include"nodes.h"
+#include"parse.h"
 #include"token.h"
 
 typedef const char *It;
 
 /// @return node end when successful, null when unmatched, -1 when bad
-static It node(void **dest, mylispcPos *pos, It start, It end);
+static It node(void **dest, mylispxPos *pos, It start, It end);
 /// @return next start when successful, -1 when bad
-static It nodes(void **dest, mylispcPos *pos, It it, It end);
+static It nodes(void **dest, mylispxPos *pos, It it, It end);
 
 static inline void freeIfStr(mylispcLexerDest *dest) {
   if (dest->token == MYLISPC_STR_TOKEN) {
@@ -17,7 +17,7 @@ static inline void freeIfStr(mylispcLexerDest *dest) {
   }
 }
 
-bool mylispcParse(void **dest, mylispcPos *pos, It it, It end) {
+bool mylispcParse(void **dest, mylispxPos *pos, It it, It end) {
   It start2 = nodes(dest, pos, it, end);
   if (start2 == (It) -1) {
     return false;
@@ -36,9 +36,9 @@ bool mylispcParse(void **dest, mylispcPos *pos, It it, It end) {
 }
 
 /// @return node end when successful, -1 when bad
-static It listAtom(void **dest, mylispcPos *pos, It it, It end);
+static It listAtom(void **dest, mylispxPos *pos, It it, It end);
 
-It node(void **dest, mylispcPos *pos, It start, It end) {
+It node(void **dest, mylispxPos *pos, It start, It end) {
   mylispcLexerDest prod1 = {};
   It end1 = mylispcLexer(&prod1, start, end);
   if (prod1.token == MYLISPC_EOF_TOKEN || prod1.token == MYLISPC_RPAREN_TOKEN) {
@@ -112,7 +112,7 @@ It node(void **dest, mylispcPos *pos, It start, It end) {
   return end1;
 }
 
-It listAtom(void **dest, mylispcPos *pos, It it, It end) {
+It listAtom(void **dest, mylispxPos *pos, It it, It end) {
   mylispcListAtom *a = zltTypeAlloc(mylispcListAtom);
   if (!a) {
     mylispBad = MYLISP_OOM_BAD;
@@ -143,7 +143,7 @@ It listAtom(void **dest, mylispcPos *pos, It it, It end) {
   return (It) -1;
 }
 
-It nodes(void **dest, mylispcPos *pos, It it, It end) {
+It nodes(void **dest, mylispxPos *pos, It it, It end) {
   It start1 = mylispcHit(it, end);
   It end1 = node(dest, pos, start1, end);
   if (!end1) {
