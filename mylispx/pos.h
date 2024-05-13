@@ -31,4 +31,8 @@ static inline void mylispxPosStackPop(void *k) {
   zltStackPop(k, sizeof(mylispxPos));
 }
 
+static inline bool mylispcxPosStackRealloc(void *k, size_t size) {
+  return zltStackRealloc(k, sizeof(mylispxPos) * size);
+}
+
 #endif

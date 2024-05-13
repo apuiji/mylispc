@@ -14,10 +14,14 @@ static inline mylispcMacro mylispcMacroMake(mylispxPos pos, const zltString *par
   return (mylispcMacro) { .pos = pos, .params = params, .paramc = paramc, .body = body };
 }
 
+void mylispcMacroClean(void *macro);
+
 typedef struct {
   zltStrTree strTree;
   mylispcMacro macro;
 } mylispcMacroTree;
+
+#define mylispcMacroTreeMemb(p, m) zltMemb(p, mylispcMacroTree, m)
 
 static inline mylispcMacroTree mylispcMacroTreeMake(const void *parent, zltString name, mylispcMacro macro) {
   return (mylispcMacroTree) { .strTree = zltStrTreeMake(parent, name), .macro = macro };
