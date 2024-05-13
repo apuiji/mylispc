@@ -2,14 +2,16 @@
 #include"nodes.h"
 #include"preproc.h"
 
+typedef mylispcContext Context;
+
 void mylispcMacroClean(mylispcMacro *macro) {
   free(macro->params);
   mylispcNodeClean(macro->body, NULL);
 }
 
-static void **preprocList(void **dest, mylispcContext *ctx, void **src, void **first);
+static void **preprocList(void **dest, Context *ctx, void **src, void **first);
 
-void **mylispcPreproc(void **dest, mylispcContext *ctx, void **src) {
+void **mylispcPreproc(void **dest, Context *ctx, void **src) {
   if (!*src) {
     return dest;
   }
@@ -24,9 +26,9 @@ void **mylispcPreproc(void **dest, mylispcContext *ctx, void **src) {
   return mylispcPreproc(next, ctx, src);
 }
 
-static void **macroExpand(void **dest, mylispcContext *ctx, const mylispcMacro *macro, const void *src);
+static void **macroExpand(void **dest, Context *ctx, const mylispcMacro *macro, const void *src);
 
-void **preprocList(void **dest, mylispcContext *ctx, void **src, void **first) {
+void **preprocList(void **dest, Context *ctx, void **src, void **first) {
   if (!*first) {
     void **next = zltLinkPush(dest, zltLinkPop(src));
     return mylispcPreproc(next, ctx, src);
@@ -85,20 +87,72 @@ void **preprocList(void **dest, mylispcContext *ctx, void **src, void **first) {
 
 typedef struct {
   zltPtrTree ptrTree;
-  void *node;
+  const void *node;
 } MacroExpTree;
 
-static inline MacroExpTree macroExpTreeMake(const void *parent, const zltString *name, void *node) {
+#define macroExpTreeMemb(p, m) zltMemb(p, MacroExpTree, m)
+
+static inline MacroExpTree macroExpTreeMake(const void *parent, const zltString *name, const void *node) {
   return (MacroExpTree) { .ptrTree = zltPtrTreeMake(parent, name), .node = node };
 }
 
-static bool macroExpTreeMake1(MacroExpTree **dest, const void *src);
+static bool macroExpTreeMake1(MacroExpTree **dest, Context *ctx, const zltString **param, size_t paramc, const void *src);
+
+static void **macroExpand1(void **dest, Context *ctx, const MacroExpTree *expTree, const void *src);
 
 void **macroExpand(void **dest, mylispcContext *ctx, const mylispcMacro *macro, const void *src) {
-  ;
+  MacroExpTree *expTree = NULL;
+  if (!macroExpTreeMake1(&expTree, ctx, macro->params, macro->paramc, src)) {
+    zltBiTreeClean(expTree, free);
+    return NULL;
+  }
+  void **next = macroExpand1(dest, ctx, expTree, macro->body);
+  zltBiTreeClean(expTree, free);
+  return next;
 }
 
-bool macroExpTreeMake1(MacroExpTree **dest, const void *src) {}
+bool macroExpTreeMake1(MacroExpTree **dest, Context *ctx, const zltString **param, size_t paramc, const void *src) {
+  if (!paramc) {
+    return true;
+  }
+  if (!*param) {
+    goto A;
+  }
+  void *parent = NULL;
+  void **slot = zltPtrTreeFindForInsert(&parent, dest, *param);
+  if (*slot) {
+    macroExpTreeMemb(*slot, node) = src;
+  } else {
+    MacroExpTree *a = zltTypeAlloc(MacroExpTree);
+    if (!a) {
+      mylispcReportBad(ctx, MYLISPC_OOM_BAD);
+      return false;
+    }
+    *a = macroExpTreeMake(parent, *param, src);
+    *slot = a;
+  }
+  A:
+  return macroExpTreeMake1(dest, ctx, param + 1, param - 1, zltLinkMemb(src, next));
+}
+
+static bool cloneEOLAtom(void **dest, Context *ctx);
+static bool cloneIDAtom(void **dest, Context *ctx, const mylispcIDAtom *src);
+static bool cloneListAtom(void **dest, Context *ctx, const mylispcListAtom *src);
+static bool cloneNumAtom(void **dest, Context *ctx, const mylispcNumAtom *src);
+static bool cloneStrAtom(void **dest, Context *ctx, const mylispcStrAtom *src);
+static bool cloneTokenAtom(void **dest, Context *ctx, const mylispcTokenAtom *src);
+
+void **macroExpand1(void **dest, Context *ctx, const MacroExpTree *expTree, const void *src) {
+  if (!src) {
+    return dest;
+  }
+  int clazz = mylispcNodeMemb(src, clazz);
+  if (clazz == MYLISPC_EOL_ATOM_CLASS) {
+    if (!cloneEOLAtom(dest)) {
+      return NULL;
+    }
+  }
+}
 
 static bool cloneEmptyListAtom(void **dest);
 static bool cloneEOLAtom(void **dest);

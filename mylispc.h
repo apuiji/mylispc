@@ -26,6 +26,7 @@ void mylispcReportBad(const mylispcContext *ctx, int bad);
 
 enum {
   MYLISPC_NO_BAD,
+  MYLISPC_INV_MACRO_ARG_BAD,
   MYLISPC_OOM_BAD,
   MYLISPC_MACRO_ALREADY_DEFINED_BAD,
   MYLISPC_POS_STACK_SIZE_OVER_LIMIT_BAD,
