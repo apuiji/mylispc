@@ -72,7 +72,31 @@ void **preprocList(void **dest, Context *ctx, void **src, void **first) {
     *next = *first;
     return preprocList(dest, ctx, src, first1);
   }
-  // TODO
+  if (clazz == MYLISPC_NUM_ATOM_CLASS || clazz == MYLISPC_STR_ATOM_CLASS) {
+    goto A;
+  }
+  int token = mylispcTokenAtomMemb(src, token);
+  if (token == MYLISPC_POUND_TOKEN) {
+    // TODO
+  } else if (token == MYLISPC_POUND2_TOKEN) {
+    // TODO
+  } else if (token == MYLISPC_POUND_DEF_TOKEN) {
+    // TODO
+  } else if (token == MYLISPC_POUND_IF_TOKEN) {
+    // TODO
+  } else if (token == MYLISPC_POUND_INCLUDE_TOKEN) {
+    // TODO
+  } else if (token == MYLISPC_POUND_MOVE_TOKEN) {
+    // TODO
+  } else if (token == MYLISPC_POUND_POP_TOKEN) {
+    // TODO
+  } else if (token == MYLISPC_POUND_PUSH_TOKEN) {
+    // TODO
+  } else if (token == MYLISPC_POUND_UNDEF_TOKEN) {
+    // TODO
+  } else {
+    goto A;
+  }
   A:
   {
     void *first1 = NULL;
@@ -260,101 +284,20 @@ bool cloneIDAtom(void **dest, Context *ctx, const mylispcIDAtom *src) {
     mylispcReportBad(ctx, MYLISPC_OOM_BAD);
     return false;
   }
-  *dest = a;
-  return true;
-}
-
-bool cloneListAtom(void **dest, Context *ctx, const mylispcListAtom *src) {}
-
-static bool cloneNumAtom(void **dest, Context *ctx, const mylispcNumAtom *src);
-static bool cloneStrAtom(void **dest, Context *ctx, const mylispcStrAtom *src);
-static bool cloneTokenAtom(void **dest, Context *ctx, const mylispcTokenAtom *src);
-
-static bool cloneEmptyListAtom(void **dest);
-static bool cloneEOLAtom(void **dest);
-static bool cloneIDAtom(void **dest, const mylispcIDAtom *src);
-static bool cloneListAtom(void **dest, const mylispcListAtom *src);
-static bool cloneNumAtom(void **dest, const mylispcNumAtom *src);
-static bool cloneStrAtom(void **dest, const mylispcStrAtom *src);
-static bool cloneTokenAtom(void **dest, const mylispcTokenAtom *src);
-static void **clones(void **dest, const void *src);
-
-void **mylispcPreproc(void **dest, mylispxPosStack *posk, mylispcMacroTree **macroTree, const void *src) {
-  if (!src) {
-    return dest;
-  }
-  int clazz = zltMemb(src, mylispcNode, clazz);
-  if (clazz == MYLISPC_EOL_ATOM_CLASS) {
-    if (!cloneEOLAtom(dest)) {
-      return NULL;
-    }
-    ++posk->top->li;
-  }
-  if (clazz == MYLISPC_ID_ATOM_CLASS) {
-    if (!cloneIDAtom(dest, (const mylispcIDAtom *) src)) {
-      return NULL;
-    }
-  } else if (clazz == MYLISPC_NUM_ATOM_CLASS) {
-    if (!cloneNumAtom(dest, (const mylispcNumAtom *) src)) {
-      return NULL;
-    }
-  } else if (clazz == MYLISPC_STR_ATOM_CLASS) {
-    if (!cloneStrAtom(dest, (const mylispcStrAtom *) src)) {
-      return NULL;
-    }
-  } else if (clazz == MYLISPC_TOKEN_ATOM_CLASS) {
-    if (!cloneTokenAtom(dest, (const mylispcTokenAtom *) src)) {
-      return NULL;
-    }
-  } else {
-    void **next = preprocList(dest, posk, macroTree, zltMemb(src, mylispcListAtom, first));
-    return next ? mylispcPreproc(next, posk, macroTree, zltMemb(src, zltLink, next)) : NULL;
-  }
-  return mylispcPreproc(&zltMemb(*dest, zltLink, next), posk, macroTree, zltMemb(src, zltLink, next));
-}
-
-bool cloneEmptyListAtom(void **dest) {
-  mylispcListAtom *a = zltTypeAlloc(mylispcListAtom);
-  if (!a) {
-    mylispBad = MYLISP_OOM_BAD;
-    return false;
-  }
-  *a = mylispcListAtomMake(NULL);
-  *dest = a;
-  return true;
-}
-
-bool cloneEOLAtom(void **dest) {
-  mylispcEOLAtom *eol = zltTypeAlloc(mylispcEOLAtom);
-  if (!a) {
-    mylispBad = MYLISP_OOM_BAD;
-    return false;
-  }
-  *a = mylispcNodeMake(MYLISPC_EOL_ATOM_CLASS);
-  *dest = a;
-  return true;
-}
-
-bool cloneIDAtom(void **dest, const mylispcIDAtom *src) {
-  mylispcIDAtom *a = zltTypeAlloc(mylispcIDAtom);
-  if (!a) {
-    mylispBad = MYLISP_OOM_BAD;
-    return false;
-  }
   *a = mylispcIDAtomMake(src->raw);
   *dest = a;
   return true;
 }
 
-bool cloneListAtom(void **dest, const mylispcListAtom *src) {
+bool cloneListAtom(void **dest, Context *ctx, const mylispcListAtom *src) {
   mylispcListAtom *a = zltTypeAlloc(mylispcListAtom);
   if (!a) {
-    mylispBad = MYLISP_OOM_BAD;
+    mylispcReportBad(ctx, MYLISPC_OOM_BAD);
     return false;
   }
   void *first = NULL;
-  if (!clones(&first, src->first)) {
-    mylispcNodeClean(first);
+  if (!clones(&first, ctx, src->first)) {
+    mylispcNodeClean(first, NULL);
     return false;
   }
   *a = mylispcListAtomMake(first);
@@ -362,10 +305,10 @@ bool cloneListAtom(void **dest, const mylispcListAtom *src) {
   return true;
 }
 
-bool cloneNumAtom(void **dest, const mylispcNumAtom *src) {
+bool cloneNumAtom(void **dest, Context *ctx, const mylispcNumAtom *src) {
   mylispcNumAtom *a = zltTypeAlloc(mylispcNumAtom);
   if (!a) {
-    mylispBad = MYLISP_OOM_BAD;
+    mylispcReportBad(ctx, MYLISPC_OOM_BAD);
     return false;
   }
   *a = mylispcNumAtomMake(src->raw, src->value);
@@ -373,10 +316,10 @@ bool cloneNumAtom(void **dest, const mylispcNumAtom *src) {
   return true;
 }
 
-bool cloneStrAtom(void **dest, const mylispcStrAtom *src) {
+bool cloneStrAtom(void **dest, Context *ctx, const mylispcStrAtom *src) {
   mylispcStrAtom *a = zltTypeAlloc(mylispcStrAtom);
   if (!a) {
-    mylispBad = MYLISP_OOM_BAD;
+    mylispcReportBad(ctx, MYLISPC_OOM_BAD);
     return false;
   }
   *a = mylispcStrAtomMake(src->value);
@@ -384,44 +327,13 @@ bool cloneStrAtom(void **dest, const mylispcStrAtom *src) {
   return true;
 }
 
-bool cloneTokenAtom(void **dest, const mylispcTokenAtom *src) {
+bool cloneTokenAtom(void **dest, Context *ctx, const mylispcTokenAtom *src) {
   mylispcTokenAtom *a = zltTypeAlloc(mylispcTokenAtom);
   if (!a) {
-    mylispBad = MYLISP_OOM_BAD;
+    mylispcReportBad(ctx, MYLISPC_OOM_BAD);
     return false;
   }
   *a = mylispcTokenAtomMake(src->token);
   *dest = a;
   return true;
-}
-
-void **clones(void **dest, const void *src) {
-  int clazz = zltMemb(src, mylispcNode, clazz);
-  if (clazz == MYLISPC_EOL_ATOM_CLASS) {
-    if (!cloneEOLAtom(dest)) {
-      return NULL;
-    }
-  }
-  if (clazz == MYLISPC_ID_ATOM_CLASS) {
-    if (!cloneIDAtom(dest, (const mylispcIDAtom *) src)) {
-      return NULL;
-    }
-  } else if (clazz == MYLISPC_LIST_ATOM_CLASS) {
-    if (!cloneListAtom(dest, (const mylispcListAtom *) src)) {
-      return NULL;
-    }
-  } else if (clazz == MYLISPC_NUM_ATOM_CLASS) {
-    if (!cloneNumAtom(dest, (const mylispcNumAtom *) src)) {
-      return NULL;
-    }
-  } else if (clazz == MYLISPC_STR_ATOM_CLASS) {
-    if (!cloneStrAtom(dest, (const mylispcStrAtom *) src)) {
-      return NULL;
-    }
-  } else {
-    if (!cloneTokenAtom(dest, (const mylispcTokenAtom *) src)) {
-      return NULL;
-    }
-  }
-  return clones(&zltMemb(*dest, zltLink, next), zltMemb(src, zltLink, next));
 }
