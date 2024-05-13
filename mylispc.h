@@ -14,27 +14,36 @@ typedef struct {
   void *macros;
   mylispxPos pos;
   zltStack posk;
-  bool ignoreWarns;
+  // limit options begin
+  size_t strLtrlSizeLimit;
   size_t reportBadPoskLimit;
+  // limit options end
 } mylispcContext;
 
 void mylispcCtxClean(mylispcContext *ctx);
 
-void mylispcReportBad(const mylispcCtx *ctx, int bad);
+void mylispcReportBad(const mylispcContext *ctx, int bad);
 
 enum {
   MYLISPC_NO_BAD,
   MYLISPC_OOM_BAD,
-  MYLISPC_STR_TOO_LONG_BAD,
+  MYLISPC_MACRO_ALREADY_DEFINED_BAD,
+  MYLISPC_POS_STACK_SIZE_OVER_LIMIT_BAD,
+  MYLISPC_STR_LTRL_SIZE_OVER_LIMIT_BAD,
   MYLISPC_UNEXPECTED_TOKEN_BAD,
   MYLISPC_UNTERMINATED_STR_BAD,
   MYLISPC_UNRECOGNIZED_SYMB_BAD
 };
 
-zltString mylispcCtxAddSymbol(mylispcContext *ctx, zltString symbol);
+/// if symbol already exists, delete param symbol data
+/// @return null when bad
+const zltString *mylispcCtxAddSymbol(mylispcContext *ctx, zltString symbol);
+
+/// @return null when bad
+const zltString *mylispcCtxAddSymbolClone(mylispcContext *ctx, zltString symbol);
 
 /// @return false when bad
-bool mylispcCtxAddMacro(mylispcContext *ctx, const void *macro);
+bool mylispcCtxAddMacro(mylispcContext *ctx, const zltString *name, const void *macro);
 
 typedef struct {
   zltLink link;

@@ -12,8 +12,8 @@ typedef struct {
 } mylispcLexerDest;
 
 /// @return null when bad
-const char *mylispcLexer(mylispcLexerDest *dest, const char *it, const char *end);
+const char *mylispcLexer(mylispcLexerDest *dest, mylispcContext *ctx, const char *it, const char *end);
 
-bool mylispcParse(void **dest, mylispxPos *pos, const char *it, const char *end);
+bool mylispcParse(void **dest, mylispcContext *ctx, const char *it, const char *end);
 
 #endif
