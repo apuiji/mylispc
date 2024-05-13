@@ -27,6 +27,16 @@ void **mylispcPreproc(void **dest, Context *ctx, void **src) {
 }
 
 static void **macroExpand(void **dest, Context *ctx, const mylispcMacro *macro, const void *src);
+static void **pound(void **dest, Context *ctx, void **src);
+static void **pound2(void **dest, Context *ctx, void **src);
+static void **poundDef(void **dest, Context *ctx, void **src);
+static void **poundIf(void **dest, Context *ctx, void **src);
+static void **poundInclude(void **dest, Context *ctx, void **src);
+static void **poundLine(void **dest, Context *ctx, void **src);
+static void **poundMove(void **dest, Context *ctx, void **src);
+static void **poundPop(void **dest, Context *ctx, void **src);
+static void **poundPush(void **dest, Context *ctx, void **src);
+static void **poundUndef(void **dest, Context *ctx, void **src);
 
 void **preprocList(void **dest, Context *ctx, void **src, void **first) {
   if (!*first) {
@@ -75,27 +85,34 @@ void **preprocList(void **dest, Context *ctx, void **src, void **first) {
   if (clazz == MYLISPC_NUM_ATOM_CLASS || clazz == MYLISPC_STR_ATOM_CLASS) {
     goto A;
   }
-  int token = mylispcTokenAtomMemb(src, token);
+  void **(*f)(void **dest, Context *ctx, void **src);
+  int token = mylispcTokenAtomMemb(first, token);
   if (token == MYLISPC_POUND_TOKEN) {
-    // TODO
+    f = pound;
   } else if (token == MYLISPC_POUND2_TOKEN) {
-    // TODO
+    f = pound2;
   } else if (token == MYLISPC_POUND_DEF_TOKEN) {
-    // TODO
+    f = poundDef;
   } else if (token == MYLISPC_POUND_IF_TOKEN) {
-    // TODO
+    f = poundIf;
   } else if (token == MYLISPC_POUND_INCLUDE_TOKEN) {
-    // TODO
+    f = poundInclude;
+  } else if (token == MYLISPC_POUND_LINE_TOKEN) {
+    f = poundLine;
   } else if (token == MYLISPC_POUND_MOVE_TOKEN) {
-    // TODO
+    f = poundMove;
   } else if (token == MYLISPC_POUND_POP_TOKEN) {
-    // TODO
+    f = poundPop;
   } else if (token == MYLISPC_POUND_PUSH_TOKEN) {
-    // TODO
+    f = poundPush;
   } else if (token == MYLISPC_POUND_UNDEF_TOKEN) {
-    // TODO
+    f = poundUndef;
   } else {
     goto A;
+  }
+  {
+    void **next = f(dest, ctx, );
+    return 
   }
   A:
   {
