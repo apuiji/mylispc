@@ -14,23 +14,29 @@ namespace zlt::mylispc {
     if (it == end) [[unlikely]] {
       return end;
     }
+    if (*it == '\n') {
+      return it;
+    }
     if (isspace(*it)) {
       return hit(it + 1, end);
     }
     if (*it == ';') {
-      return hit(find(it + 1, end, '\n'), end);
+      return find(it + 1, end, '\n');
     }
     return it;
   }
 
   using Prod = pair<int, It>;
 
-  static Prod lexerStr(char &charval, string &strval, stringstream &ss, It start, It it, It end);
+  static Prod lexerStr(string &strval, stringstream &ss, int quot, It it, It end);
   static bool isRawChar(char c) noexcept;
 
-  Prod lexer(double &numval, char &charval, string &strval, It it, It end) {
+  Prod lexer(double &numval, string &strval, Context &ctx, It it, It end) {
     if (it == end) [[unlikely]] {
       return { token::E0F, end };
+    }
+    if (*it == '\n') {
+      return { token::EOL, it + 1 };
     }
     if (*it == '(') {
       return { "("_token, it + 1 };
@@ -40,14 +46,15 @@ namespace zlt::mylispc {
     }
     if (*it == '"' || *it == '\'') {
       stringstream ss;
-      return lexerStr(charval, strval, ss, it, it + 1, end);
+      return lexerStr(strval, ss, *it, it + 1, end);
     }
     It it1 = find_if_not(it, end, isRawChar);
     if (it1 == it) {
-      throw Bad(bad::UNRECOGNIZED_SYMBOL, it);
+      reportBad(ctx, bad::UNRECOGNIZED_SYMBOL);
+      throw Bad();
     }
     string_view raw(it, it1 - it);
-    int t = token::ofRaw(numval, it, raw);
+    int t = token::ofRaw(numval, ctx, it, raw);
     return { t, it1 };
   }
 
@@ -55,76 +62,76 @@ namespace zlt::mylispc {
     return !strchr("\"'();", c) && !isspace(c);
   }
 
-  static pair<int, size_t> esch(It it, It end) noexcept;
+  static size_t esch(int &dest, It it, It end) noexcept;
 
-  Prod lexerStr(char &charval, string &strval, stringstream &ss, It start, It it, It end) {
+  Prod lexerStr(string &strval, stringstream &ss, int quot, It it, It end) {
     if (it == end) [[unlikely]] {
-      throw Bad(bad::UNTERMINATED_STRING, start);
+      reportBad(ctx, bad::UNTERMINATED_STRING);
+      throw Bad();
     }
-    if (It it1 = find_if(it, end, [q = *start] (char c) { return c == '\\' || c == q; }); it1 != it) {
+    if (It it1 = find_if(it, end, [quot] (char c) { return c == '\\' || c == quot; }); it1 != it) {
       ss.write(it, it1 - it);
-      return lexerStr(charval, strval, ss, start, it1, end);
+      return lexerStr(strval, ss, quot, it1, end);
     }
     if (*it == '\\') {
-      auto [c, n] = esch(it + 1, end);
+      int c;
+      size_t n = esch(c, it + 1, end);
       ss.put(c);
-      return lexerStr(charval, strval, ss, start, it + 1 + n, end);
+      return lexerStr(strval, ss, quot, it + 1 + n, end);
     }
     strval = ss.str();
     return { token::STRING, it + 1 };
   }
 
-  static bool esch1(int &c, size_t &n, It it, It end) noexcept;
-  static bool esch8(int &c, size_t &n, It it, It end) noexcept;
-  static bool esch16(int &c, size_t &n, It it, It end) noexcept;
+  static size_t esch8(int &dest, It it, It end, size_t limit) noexcept;
+  static size_t esch16(int &dest, It it, It end) noexcept;
 
-  pair<int, size_t> esch(It it, It end) noexcept {
-    int c = '\\';
-    size_t n = 0;
-    if (it != end) {
-      esch1(c, n, it, end) || esch8(c, n, it, end) || esch16(c, n, it, end);
+  size_t esch(int &dest, It it, It end) noexcept {
+    if (it == end) {
+      dest = '\\';
+      return 0;
     }
-    return { c, n };
-  }
-
-  bool esch1(int &c, size_t &n, It it, It end) noexcept {
     if (*it == '"' || *it == '\'' || *it == '\\') {
-      c = *it;
-    } else if (*it == 'n') {
-      c = '\n';
-    } else if (*it == 'r') {
-      c = '\r';
-    } else if (*it == 't') {
-      c = '\t';
-    } else {
-      return false;
+      dest = *it;
+      return 1;
     }
-    n = 1;
-    return true;
+    if (*it == 'n') {
+      dest = '\n';
+      return 1;
+    }
+    if (*it == 'r') {
+      dest = '\r';
+      return 1;
+    }
+    if (*it == 't') {
+      dest = '\t';
+      return 1;
+    }
+    if (*it >= '0' && *it <= '3') {
+      return esch8(dest, it, end, 3);
+    }
+    if (*it >= '4' && *it <= '7') {
+      return esch8(dest, it, end, 2);
+    }
+    if (*it == 'x') {
+      return esch16(dest, it, end);
+    }
+    *dest = '\\';
+    return 0;
   }
 
-  bool esch8(int &c, size_t &n, It it, It end) noexcept {
-    if (it + 2 < end && *it >= '0' && *it <= '3' && it[1] >= '0' && it[1] <= '7' && it[2] >= '0' && it[2] <= '7') {
-      c = ((*it - '0') << 6) | ((it[1] - '0') << 3) | (it[2] - '0');
-      n = 3;
-      return true;
+  size_t esch8(int &dest, It it, It end, size_t limit) noexcept {
+    dest = 0;
+    int n = 0;
+    for (; it != end && n < limit && *it >= '0' && *it <= '7'; ++it, ++n) {
+      dest = (dest << 3) | (*it - '0');
     }
-    if (it + 1 < end && *it >= '0' && *it <= '7' && it[1] >= '0' && it[1] <= '7') {
-      c = ((*it - '0') << 3) | (it[1] - '0');
-      n = 2;
-      return true;
-    }
-    if (*it >= '0' && *it <= '7') {
-      c = *it - '0';
-      n = 1;
-      return true;
-    }
-    return false;
+    return n;
   }
 
-  bool esch16(int &c, size_t &n, It it, It end) noexcept {
-    if (it + 2 < end && *it == 'x' && isxdigit(it[1]) && isxdigit(it[2])) {
-      c = stoi(string(it + 1, it + 3), nullptr, 16);
+  size_t esch16(int &dest, It it, It end) noexcept {
+    if (it + 2 < end && isxdigit(it[1]) && isxdigit(it[2])) {
+      dest = stoi(string(it + 1, it + 3), nullptr, 16);
       n = 3;
       return true;
     }
