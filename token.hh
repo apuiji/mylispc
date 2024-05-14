@@ -1,18 +1,18 @@
 #pragma once
 
-#include<string_view>
-#include<type_traits>
+#include"mylispc.hh"
 
 namespace zlt::mylispc::token {
   enum {
     E0F,
+    EOL,
     ID,
     NUMBER,
     STRING,
     X
   };
 
-  int ofRaw(double &numval, const char *start, std::string_view raw);
+  int ofRaw(double &numval, Context &ctx, std::string_view raw);
 
   consteval int symbol(std::string_view raw, auto ...s) {
     int i = X;
@@ -27,6 +27,7 @@ namespace zlt::mylispc::token {
     value(
       symbol(
         s,
+        // keywords begin
         "callee",
         "def",
         "defer",
@@ -37,7 +38,8 @@ namespace zlt::mylispc::token {
         "return",
         "throw",
         "try",
-        "!",
+        // keywords end
+        // preproc operations begin
         "#",
         "##",
         "#def",
@@ -45,6 +47,13 @@ namespace zlt::mylispc::token {
         "#include",
         "#movedef",
         "#undef",
+        // preproc operations end
+        // mark operations begin
+        "$poppos",
+        "$pos",
+        "$pushpos",
+        // mark operations end
+        "!",
         "%",
         "&&",
         "&",

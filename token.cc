@@ -1,3 +1,4 @@
+#include<cmath>
 #include<regex>
 #include"mylispc.hh"
 #include"token.hh"
@@ -5,16 +6,17 @@
 using namespace std;
 
 namespace zlt::mylispc::token {
-  static bool isNumber(double &dest, const char *start, string_view raw);
+  static bool isNumber(double &dest, Context &ctx, string_view raw);
 
-  int ofRaw(double &numval, const char *start, string_view raw) {
-    if (isNumber(numval, start, raw)) {
+  int ofRaw(double &numval, Context &ctx, string_view raw) {
+    if (isNumber(numval, ctx, raw)) {
       return NUMBER;
     }
     #define ifRaw(s) \
     if (raw == s) { \
       return s##_token; \
     }
+    // keywords begin
     ifRaw("callee");
     ifRaw("def");
     ifRaw("defer");
@@ -25,7 +27,8 @@ namespace zlt::mylispc::token {
     ifRaw("return");
     ifRaw("throw");
     ifRaw("try");
-    ifRaw("!");
+    // keywords end
+    // preproc operations begin
     ifRaw("#");
     ifRaw("##");
     ifRaw("#def");
@@ -33,6 +36,13 @@ namespace zlt::mylispc::token {
     ifRaw("#include");
     ifRaw("#movedef");
     ifRaw("#undef");
+    // preproc operations end
+    // mark operations begin
+    ifRaw("$poppos");
+    ifRaw("$pos");
+    ifRaw("$pushpos");
+    // mark operations end
+    ifRaw("!");
     ifRaw("%");
     ifRaw("&&");
     ifRaw("&");
@@ -74,7 +84,7 @@ namespace zlt::mylispc::token {
   static bool isBaseInt(double &dest, const regex &re, size_t base, string_view raw);
   static bool isDecimal(double &dest, string_view raw);
 
-  bool isNumber(double &dest, const char *start, string_view raw) {
+  bool isNumber(double &dest, Context &ctx, string_view raw) {
     try {
       return
         isBaseInt(dest, re2i, 2, raw) ||
@@ -85,7 +95,9 @@ namespace zlt::mylispc::token {
     } catch (invalid_argument) {
       return false;
     } catch (out_of_range) {
-      throw Bad(bad::NUMBER_LITERAL_OOR, start);
+      reportBad(ctx, bad::NUMBER_LITERAL_OOR);
+      dest = NAN;
+      return true;
     }
   }
 
