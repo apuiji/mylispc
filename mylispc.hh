@@ -9,6 +9,7 @@
 #include<string>
 #include<type_traits>
 #include<vector>
+#include"zlt/myset.hh"
 
 namespace zlt::mylispc {
   struct Node {
@@ -17,15 +18,6 @@ namespace zlt::mylispc {
 
   using UNode = std::unique_ptr<Node>;
   using UNodes = std::list<UNode>;
-
-  struct Macro {
-    using Params = std::vector<const std::string *>;
-    using ItParam = Params::const_iterator;
-    Pos pos;
-    Params params;
-    UNodes body;
-    Macro() = default;
-  };
 
   struct Pos {
     const std::string *file;
@@ -41,10 +33,19 @@ namespace zlt::mylispc {
   void push(PosStack &posk, const Pos &pos);
   Pos pop(PosStack &posk);
 
+  struct Macro {
+    using Params = std::vector<const std::string *>;
+    using ItParam = Params::const_iterator;
+    Pos pos;
+    Params params;
+    UNodes body;
+    Macro() = default;
+  };
+
   struct Context {
     std::ostream &out;
     std::ostream &err;
-    std::set<std::string> symbols;
+    MySet<std::string> symbols;
     PosStack posk;
     Pos pos;
     std::map<const std::string *, Macro> macros;
@@ -72,7 +73,7 @@ namespace zlt::mylispc {
 
   static inline void preproc(UNodes &dest, Context &ctx, UNodes::const_iterator it, UNodes::const_iterator end) {
     for (; it != end; ++it) {
-      preproc(dest, srcs, macros, *it);
+      preproc(dest, ctx, *it);
     }
   }
 

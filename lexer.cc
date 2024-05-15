@@ -28,7 +28,7 @@ namespace zlt::mylispc {
 
   using Prod = pair<int, It>;
 
-  static Prod lexerStr(string &strval, stringstream &ss, int quot, It it, It end);
+  static Prod lexerStr(string &strval, stringstream &ss, Context &ctx, int quot, It it, It end);
   static bool isRawChar(char c) noexcept;
 
   Prod lexer(double &numval, string &strval, Context &ctx, It it, It end) {
@@ -46,7 +46,7 @@ namespace zlt::mylispc {
     }
     if (*it == '"' || *it == '\'') {
       stringstream ss;
-      return lexerStr(strval, ss, *it, it + 1, end);
+      return lexerStr(strval, ss, ctx, *it, it + 1, end);
     }
     It it1 = find_if_not(it, end, isRawChar);
     if (it1 == it) {
@@ -54,7 +54,7 @@ namespace zlt::mylispc {
       throw Bad();
     }
     string_view raw(it, it1 - it);
-    int t = token::ofRaw(numval, ctx, it, raw);
+    int t = token::ofRaw(numval, ctx, raw);
     return { t, it1 };
   }
 
@@ -64,20 +64,20 @@ namespace zlt::mylispc {
 
   static size_t esch(int &dest, It it, It end) noexcept;
 
-  Prod lexerStr(string &strval, stringstream &ss, int quot, It it, It end) {
+  Prod lexerStr(string &strval, stringstream &ss, Context &ctx, int quot, It it, It end) {
     if (it == end) [[unlikely]] {
       reportBad(ctx, bad::UNTERMINATED_STRING);
       throw Bad();
     }
     if (It it1 = find_if(it, end, [quot] (char c) { return c == '\\' || c == quot; }); it1 != it) {
       ss.write(it, it1 - it);
-      return lexerStr(strval, ss, quot, it1, end);
+      return lexerStr(strval, ss, ctx, quot, it1, end);
     }
     if (*it == '\\') {
       int c;
       size_t n = esch(c, it + 1, end);
       ss.put(c);
-      return lexerStr(strval, ss, quot, it + 1 + n, end);
+      return lexerStr(strval, ss, ctx, quot, it + 1 + n, end);
     }
     strval = ss.str();
     return { token::STRING, it + 1 };
@@ -116,7 +116,7 @@ namespace zlt::mylispc {
     if (*it == 'x') {
       return esch16(dest, it, end);
     }
-    *dest = '\\';
+    dest = '\\';
     return 0;
   }
 
@@ -132,9 +132,9 @@ namespace zlt::mylispc {
   size_t esch16(int &dest, It it, It end) noexcept {
     if (it + 2 < end && isxdigit(it[1]) && isxdigit(it[2])) {
       dest = stoi(string(it + 1, it + 3), nullptr, 16);
-      n = 3;
-      return true;
+      return 3;
     }
-    return false;
+    dest = '\\';
+    return 0;
   }
 }
