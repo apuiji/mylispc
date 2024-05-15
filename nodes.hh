@@ -3,6 +3,8 @@
 #include"mylispc.hh"
 
 namespace zlt::mylispc {
+  struct EOLAtom final: Node {};
+
   struct NumberAtom final: Node {
     const std::string *raw;
     double value;

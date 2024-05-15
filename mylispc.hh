@@ -75,11 +75,11 @@ namespace zlt::mylispc {
   }
 
   void parse(UNodes &dest, Context &ctx, const char *it, const char *end);
-  void preproc(UNodes &dest, Context &ctx, const UNode &src);
+  void preproc(UNodes &dest, Context &ctx, UNode &src);
 
-  static inline void preproc(UNodes &dest, Context &ctx, UNodes::const_iterator it, UNodes::const_iterator end) {
-    for (; it != end; ++it) {
-      preproc(dest, ctx, *it);
+  static inline void preproc(UNodes &dest, Context &ctx, UNodes &src) {
+    for (; src.size(); src.pop_front()) {
+      preproc(dest, ctx, src.front());
     }
   }
 

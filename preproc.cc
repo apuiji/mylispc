@@ -10,7 +10,48 @@
 using namespace std;
 
 namespace zlt::mylispc {
+  static void preprocList(UNodes &dest, Context &ctx, ListAtom &src);
+
+  void preproc(UNodes &dest, Context &ctx, UNode &src) {
+    if (Dynamicastable<EOLAtom> {}(*src)) {
+      dest.push_back(std::move(src));
+      ++ctx.pos.li;
+      return;
+    }
+    if (auto ls = dynamic_cast<ListAtom *>(src.get()); ls) {
+      preprocList(dest, ctx, *ls);
+      return;
+    }
+    dest.push_back(std::move(src));
+  }
+
   using It = UNodes::const_iterator;
+
+  static void macroExpand(UNodes &dest, Context &ctx, const Macro &macro, It it, It end);
+  static void preprocList1(UNodes &dest, Context &ctx, ListAtom &src);
+
+  void preprocList(UNodes &dest, Context &ctx, ListAtom &src) {
+    if (src.items.empty()) [[unlikely]] {
+      return;
+    }
+    auto &a = src.items.front();
+    if (Dynamicastable<EOLAtom> {}(*a)) {
+      dest.push_back(std::move(a));
+      src.items.pop_front();
+      ++ctx.pos.li;
+      return;
+    }
+    if (auto id = dynamic_cast<IDAtom *>(a.get()); id) {
+      if (auto it = ctx.macros.find(id->name); it != ctx.macros.end()) {
+        src.items.pop_front();
+        macroExpand(dest, ctx, it->second, src.items.begin(), src.items.end());
+      } else {
+        preprocList1(dest, ctx, src);
+      }
+      return;
+    }
+    if (auto ls = dynamic_cast<ListAtom *>(a.get()); ls) {}
+  }
 
   static void clone(UNodes &dest, const UNode &src);
 

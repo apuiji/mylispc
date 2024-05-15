@@ -35,8 +35,13 @@ namespace zlt::mylispc {
     double d;
     string s;
     auto [_0, end0] = lexer(d, s, ctx, start0, end);
-    if (_0 == token::E0F || _0 == ")"_token) {
+    if (_0 == token::E0F || _0 == ")"_token) [[unlikely]] {
       return nullptr;
+    }
+    if (_0 == token::EOL) {
+      dest.reset(new EOLAtom);
+      ++ctx.pos.li;
+      return end0;
     }
     string_view raw0(start0, end0 - start0);
     if (_0 == token::NUMBER) {
