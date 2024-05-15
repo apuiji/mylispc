@@ -53,6 +53,12 @@ namespace zlt::mylispc {
     Context(std::ostream &out) noexcept: Context(out, out) {}
   };
 
+  const std::string *addSymbol(Context &ctx, std::string &&symbol);
+
+  static inline const std::string *addSymbol(Context &ctx, std::string_view symbol) {
+    return addSymbol(ctx, std::string(symbol));
+  }
+
   void reportBad(Context &ctx, int bad);
 
   const char *hit(const char *it, const char *end) noexcept;
@@ -114,7 +120,6 @@ namespace zlt::mylispc {
       MACRO_ALREADY_DEFINED,
       UNEXPECTED_TOKEN,
       UNRECOGNIZED_SYMBOL,
-      UNTERMINATED_LIST,
       UNTERMINATED_STRING
     };
   }

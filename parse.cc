@@ -1,5 +1,3 @@
-#include"myutils/xyz.hh"
-#include"mylisp.hh"
 #include"nodes.hh"
 #include"token.hh"
 
@@ -8,71 +6,65 @@ using namespace std;
 namespace zlt::mylispc {
   using It = const char *;
 
-  static It node(UNode &dest, It start0, It end);
-  static It nodes(UNodes &_0, It end0, It end);
+  static It node(UNode &dest, Context &ctx, It start0, It end);
+  static It nodes(UNodes &_0, Context &ctx, It end0, It end);
 
-  static inline void expect(bool b, const char *start) {
-    if (!b) {
-      throw Bad(bad::UNEXPECTED_TOKEN, start);
+  void parse(UNodes &dest, Context &ctx, It it, It end) {
+    It start1 = nodes(dest, ctx, it, end);
+    auto [_1, end1] = lexer(ctx, start1, end);
+    if (_1 != token::E0F) {
+      reportBad(ctx, bad::UNEXPECTED_TOKEN);
+      throw Bad();
     }
   }
 
-  void parse(UNodes &dest, It it, It end) {
-    It end0 = nodes(dest, it, end);
-    It start1 = hit(end0, end);
-    auto [_1, end1] = lexer(start1, end);
-    expect(_1 == token::E0F, start1);
-  }
-
-  It nodes(UNodes &_0, It end0, It end) {
+  It nodes(UNodes &_0, Context &ctx, It end0, It end) {
     for (;;) {
       UNode _1;
       It start1 = hit(end0, end);
-      It end1 = node(_1, start1, end);
+      It end1 = node(_1, ctx, start1, end);
       if (!end1) {
-        break;
+        return start1;
       }
       _0.push_back(std::move(_1));
       end0 = end1;
     }
-    return end0;
   }
 
-  It node(UNode &dest, It start0, It end) {
+  It node(UNode &dest, Context &ctx, It start0, It end) {
     double d;
-    char c;
     string s;
-    auto [_0, end0] = lexer(d, c, s, start0, end);
+    auto [_0, end0] = lexer(d, s, ctx, start0, end);
     if (_0 == token::E0F || _0 == ")"_token) {
       return nullptr;
     }
     string_view raw0(start0, end0 - start0);
     if (_0 == token::NUMBER) {
-      dest.reset(new NumberAtom(start0, raw0, d));
+      dest.reset(new NumberAtom(addSymbol(ctx, raw0), d));
       return end0;
     }
     if (_0 == token::STRING) {
-      auto value = mylisp::addString(std::move(s));
-      dest.reset(new StringAtom(start0, value));
+      auto value = addSymbol(ctx, std::move(s));
+      dest.reset(new StringAtom(value));
       return end0;
     }
     if (_0 == token::ID) {
-      auto name = mylisp::addString(string(raw0));
-      dest.reset(new IDAtom(start0, raw0, name));
+      auto name = addSymbol(ctx, raw0);
+      dest.reset(new IDAtom(name));
       return end0;
     }
     if (_0 == "("_token) {
       UNodes _1;
-      It end1 = nodes(_1, end0, end);
-      It start2 = hit(end1, end);
-      auto [_2, end2] = lexer(start2, end);
+      It start2 = nodes(_1, ctx, end0, end);
+      auto [_2, end2] = lexer(ctx, start2, end);
       if (_2 != ")"_token) {
-        throw Bad(bad::UNTERMINATED_LIST, start0);
+        reportBad(ctx, bad::UNEXPECTED_TOKEN);
+        throw Bad();
       }
-      dest.reset(new List(start0, std::move(_1)));
+      dest.reset(new List(std::move(_1)));
       return end2;
     }
-    dest.reset(new TokenAtom(start0, raw0, _0));
+    dest.reset(new TokenAtom(_0));
     return end0;
   }
 }

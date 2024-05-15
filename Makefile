@@ -12,5 +12,4 @@ HEADS = \
 	nodes1.hh \
 	nodes2.hh \
 	token.hh
-# OBJS = compile.o lexer.o optimize.o optimize1.o parse.o preproc.o token.o trans.o trans1.o trans2.o
-OBJS = lexer.o
+OBJS = lexer.o parse.o preproc.o token.o

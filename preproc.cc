@@ -30,7 +30,7 @@ namespace zlt::mylispc {
     UNodes items;
     clone(items, src.items.begin(), src.items.end());
     dest.push_back({});
-    dest.back().reset(new List(src.start, std::move(items)));
+    dest.back().reset(new List(std::move(items)));
   }
 
   void clone(UNodes &dest, const UNode &src) {
@@ -47,11 +47,11 @@ namespace zlt::mylispc {
     clone(dest, static_cast<const List &>(*src));
   }
 
-  static void preprocList(UNodes &dest, Sources &srcs, Macros &macros, const char *start, It it, It end);
+  static void preprocList(UNodes &dest, Context &ctx, It it, It end);
 
-  void preproc(UNodes &dest, Sources &srcs, Macros &macros, const UNode &src) {
+  void preproc(UNodes &dest, Context &ctx, const UNode &src) {
     if (auto a = dynamic_cast<const List *>(src.get()); a && a->items.size()) {
-      preprocList(dest, srcs, macros, a->start, a->items.begin(), a->items.end());
+      preprocList(dest, ctx, a->items.begin(), a->items.end());
       return;
     }
     clone(dest, src);

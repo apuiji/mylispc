@@ -83,6 +83,8 @@ namespace zlt::mylispc::token {
         "|",
         "~")) {}
   };
+
+  std::string_view raw(int token) noexcept;
 }
 
 namespace zlt::mylispc {

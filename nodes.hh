@@ -3,34 +3,30 @@
 #include"mylispc.hh"
 
 namespace zlt::mylispc {
-  struct RawAtom: Node {
-    std::string_view raw;
-    RawAtom(const char *start, std::string_view raw) noexcept: Node(start), raw(raw) {}
-  };
-
-  struct NumberAtom final: RawAtom {
+  struct NumberAtom final: Node {
+    const std::string *raw;
     double value;
-    NumberAtom(const char *start, std::string_view raw, double value) noexcept: RawAtom(start, raw), value(value) {}
+    NumberAtom(const std::string *raw, double value) noexcept: raw(raw), value(value) {}
   };
 
   struct StringAtom final: Node {
     const std::string *value;
-    StringAtom(const char *start, const std::string *value) noexcept: Node(start), value(value) {}
+    StringAtom(const std::string *value) noexcept: value(value) {}
   };
 
-  struct IDAtom final: RawAtom {
+  struct IDAtom final: Node {
     const std::string *name;
-    IDAtom(const char *start, std::string_view raw, const std::string *name) noexcept: RawAtom(start, raw), name(name) {}
+    IDAtom(const std::string *name) noexcept: name(name) {}
   };
 
-  struct TokenAtom final: RawAtom {
+  struct TokenAtom final: Node {
     int token;
-    TokenAtom(const char *start, std::string_view raw, int token) noexcept: RawAtom(start, raw), token(token) {}
+    TokenAtom(int token) noexcept: token(token) {}
   };
 
   struct List final: Node {
     UNodes items;
-    List(const char *start, UNodes &&items) noexcept: Node(start), items(std::move(items)) {}
+    List(UNodes &&items = {}) noexcept: items(std::move(items)) {}
   };
 
   template<int T>
