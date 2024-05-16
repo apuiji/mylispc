@@ -5,15 +5,15 @@
 using namespace std;
 
 namespace zlt::mylispc::token {
-  static bool isNumber(double &dest, ostream &err, string_view raw);
+  static pair<bool, int> isNumber(double &dest, string_view raw);
 
-  int ofRaw(double &numval, ostream &err, string_view raw) {
-    if (isNumber(numval, err, raw)) {
-      return NUMBER;
+  pair<int, int> ofRaw(double &numval, string_view raw) {
+    if (auto [b, bad] = isNumber(numval, raw); b) {
+      return { NUMBER, bad };
     }
     #define ifRaw(s) \
     if (raw == s) { \
-      return s##_token; \
+      return { s##_token, bad::NO_BAD }; \
     }
     // keywords begin
     ifRaw("callee");
@@ -71,7 +71,7 @@ namespace zlt::mylispc::token {
     ifRaw("|");
     ifRaw("~");
     #undef ifRaw
-    return ID;
+    return { ID, bad::NO_BAD };
   }
 
   static const regex re2i("([+-]?)0[Bb]([01]+)");
@@ -83,20 +83,20 @@ namespace zlt::mylispc::token {
   static bool isBaseInt(double &dest, const regex &re, size_t base, string_view raw);
   static bool isDecimal(double &dest, string_view raw);
 
-  bool isNumber(double &dest, ostream &err, string_view raw) {
+  pair<bool, int> isNumber(double &dest, string_view raw) {
     try {
-      return
+      bool b =
         isBaseInt(dest, re2i, 2, raw) ||
         isBaseInt(dest, re4i, 4, raw) ||
         isBaseInt(dest, re8i, 8, raw) ||
         isBaseInt(dest, re16i, 16, raw) ||
         isDecimal(dest, raw);
+      return { b, bad::NO_BAD };
     } catch (invalid_argument) {
-      return false;
+      return { false, 0 };
     } catch (out_of_range) {
-      reportBad(err, bad::NUMBER_LITERAL_OOR);
       dest = NAN;
-      return true;
+      return { true, bad::NUMBER_LITERAL_OOR };
     }
   }
 

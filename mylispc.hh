@@ -41,11 +41,12 @@ namespace zlt::mylispc {
 
   namespace bad {
     enum {
+      NO_BAD,
       // warns begin
-      WARN,
+      WARN = 0x100,
       NUMBER_LITERAL_OOR,
       // warns end
-      ERROR = 0x100,
+      ERROR = 0x200,
       CANNOT_OPEN_FILE,
       ILL_FN_PARAM,
       ILL_MACRO_PARAM,

@@ -12,7 +12,8 @@ namespace zlt::mylispc::token {
     X
   };
 
-  int ofRaw(double &numval, std::ostream &err, std::string_view raw);
+  /// @return [token, bad]
+  std::pair<int, int> ofRaw(double &numval, std::string_view raw);
 
   consteval int symbol(std::string_view raw, auto ...s) {
     int i = X;

@@ -54,7 +54,13 @@ namespace zlt::mylispc {
       throw Bad();
     }
     string_view raw(it, it1 - it);
-    int t = token::ofRaw(numval, ctx.err, raw);
+    auto [t, bad1] = token::ofRaw(numval, raw);
+    if (bad1) {
+      reportBad(ctx.err, bad1, ctx.pos, ctx.posk);
+      if ((bad1 & 0xf0) != bad::WARN) {
+        throw Bad();
+      }
+    }
     return { t, it1 };
   }
 
