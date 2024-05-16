@@ -10,22 +10,131 @@
 using namespace std;
 
 namespace zlt::mylispc {
-  static void preprocList(UNodes &dest, Context &ctx, ListAtom &src);
+  using Context = PreprocContext;
 
-  void preproc(UNodes &dest, Context &ctx, UNode &src) {
+  static void outString(ostream &dest, const unsigned char *it, const unsigned char *end);
+  static void preprocList(ostream &dest, Context &ctx, UNodes &src);
+
+  void preproc(ostream &dest, Context &ctx, UNode &src) {
+    dest.put(' ');
     if (Dynamicastable<EOLAtom> {}(*src)) {
-      dest.push_back(std::move(src));
+      dest.put('\n');
       ++ctx.pos.li;
       return;
     }
-    if (auto ls = dynamic_cast<ListAtom *>(src.get()); ls) {
-      preprocList(dest, ctx, *ls);
+    if (auto a = dynamic_cast<const NumberAtom *>(src); a) {
+      dest << a->value;
       return;
     }
-    dest.push_back(std::move(src));
+    if (auto a = dynamic_cast<const StringAtom *>(src); a) {
+      dest.put('\'');
+      outString(dest, (const unsigned char *) a->value.data(), (const unsigned char *) a->value.data() + a->value.size());
+      dest.put('\'');
+      return;
+    }
+    if (auto a = dynamic_cast<const IDAtom *>(src); a) {
+      dest << a->name;
+      return;
+    }
+    if (auto a = dynamic_cast<const TokenAtom *>(src); a) {
+      dest << token::raw(a->token);
+      return;
+    }
+    preprocList(dest, ctx, static_cast<ListAtom &>(*src).items);
   }
 
-  using It = UNodes::iterator;
+  static inline bool spechar(unsigned int c) noexcept {
+    return c < 32 || c == '\'' || c == '\\' || c >= 128;
+  }
+
+  void outString(ostream &dest, const unsigned char *it, const unsigned char *end) {
+    if (auto it1 = find_if(it, end, spechar); it1 != it) {
+      dest.write(it, it1 - it);
+      outString(dest, it1, end);
+      return;
+    }
+    dest.put('\\');
+    if (*it == '\n') {
+      dest.put('n');
+    } else if (*it == '\r') {
+      dest.put('r');
+    } else if (*it == '\t') {
+      dest.put('t');
+    } else if (*it == '\'' || *it == '\\') {
+      dest.put(*it);
+    } else {
+      dest << 'x' << hex << setw(2) << setfill('0') << *it;
+    }
+    outString(dest, it + 1, end);
+  }
+
+  static void preprocList1(ostream &dest, Context &ctx, UNodes &src);
+
+  using It = UNodes::const_iterator;
+
+  static void macroExpand(ostream &dest, Context &ctx, const Macro &macro, It it, It end);
+
+  using Pound = void (ostream &dest, Context &ctx, UNodes &src);
+
+  static Pound *isPound(const UNode &src) noexcept;
+
+  void preprocList(ostream &dest, Context &ctx, UNodes &src) {
+    if (src.empty()) [[unlikely]] {
+      dest << " ()";
+      return;
+    }
+    if (Dynamicastable<EOLAtom> {}(*src.front())) {
+      dest.put('\n');
+      ++ctx.pos.li;
+      src.pop_front();
+      preprocList(dest, ctx, src);
+      return;
+    }
+    if (auto a = dynamic_cast<IDAtom *>(src.front().get()); a) {
+      auto itMacro = ctx.macros.find(a->name);
+      if (itMacro == ctx.macros.end()) {
+        goto A;
+      }
+      src.pop_front();
+      macroExpand(dest, ctx, itMacro->second, src.begin(), src.end());
+      return;
+    }
+    if (auto p = isPound(src.front()); p) {
+      src.pop_front();
+      p(dest, ctx, src);
+      return;
+    }
+    A:
+    preprocList1(dest, ctx, src);
+  }
+
+  void preprocList1(ostream &dest, Context &ctx, UNodes &src) {
+    dest.put('(');
+    preproc(dest, ctx, src);
+    dest.put(')');
+  }
+
+  static void outPos(ostream &dest, const Pos &pos);
+
+  using MacroExpMap = map<const string *, pair<Pos, It>>;
+
+  void macroExpand(ostream &dest, Context &ctx, const Macro &macro, It it, It end) {
+    MacroExpMap map;
+    pushPos(ctx.posk, ctx.pos);
+    ctx.pos = macro.pos;
+    dest << "($pushpos) ($pos";
+    outPos(dest, macro.pos);
+    dest.put(')');
+
+  }
+
+  static Pound pound;
+  static Pound pound2;
+  static Pound poundDef;
+  static Pound poundIf;
+  static Pound poundInclude;
+  static Pound poundMovedef;
+  static Pound poundUndef;
 
   static void preprocList1(UNodes &dest, Context &ctx, ListAtom &src);
   static void macroExpand(UNodes &dest, Context &ctx, const Macro &macro, UNodes &src, It it, It end);

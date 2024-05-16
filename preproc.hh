@@ -17,14 +17,21 @@ namespace zlt::mylispc {
   };
 
   struct PreprocContext {
-    std::ostream &out;
     std::ostream &err;
     Symbols &symbols;
     Pos pos;
     PosStack posk;
     std::map<const std::string *, Macro> macros;
-    PreprocContext(std::ostream &out, std::ostream &err, Symbols &symbols) noexcept: out(out), err(err), symbols(symbols) {}
+    PreprocContext(std::ostream &err, Symbols &symbols) noexcept: out(out), err(err), symbols(symbols) {}
   };
 
-  void preproc(PreprocContext &ctx, UNodes &src);
+  void preproc(std::ostream &dest, PreprocContext &ctx, UNode &src);
+
+  static inline void preproc(std::ostream &dest, PreprocContext &ctx, UNodes &src) {
+    auto it = src.cbegin();
+    auto end = src.cend();
+    for (; it != end; it = src.erase(it)) {
+      preproc(dest, ctx, *it);
+    }
+  }
 }
