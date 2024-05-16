@@ -30,8 +30,8 @@ namespace zlt::mylispc {
     size_t left;
   };
 
-  void push(PosStack &posk, const Pos &pos);
-  Pos pop(PosStack &posk);
+  void pushPos(PosStack &posk, const Pos &pos);
+  Pos popPos(PosStack &posk);
 
   struct Macro {
     using Params = std::vector<const std::string *>;

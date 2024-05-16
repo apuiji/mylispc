@@ -25,13 +25,15 @@ namespace zlt::mylispc {
     dest.push_back(std::move(src));
   }
 
-  using It = UNodes::const_iterator;
+  using It = UNodes::iterator;
 
-  static void macroExpand(UNodes &dest, Context &ctx, const Macro &macro, It it, It end);
+  static void macroExpand(UNodes &dest, Context &ctx, const Macro &macro, UNodes &src, It it, It end);
   static void preprocList1(UNodes &dest, Context &ctx, ListAtom &src);
 
   void preprocList(UNodes &dest, Context &ctx, ListAtom &src) {
     if (src.items.empty()) [[unlikely]] {
+      dest.push_back({});
+      dest.back().reset(new ListAtom);
       return;
     }
     auto &a = src.items.front();
@@ -44,14 +46,96 @@ namespace zlt::mylispc {
     if (auto id = dynamic_cast<IDAtom *>(a.get()); id) {
       if (auto it = ctx.macros.find(id->name); it != ctx.macros.end()) {
         src.items.pop_front();
-        macroExpand(dest, ctx, it->second, src.items.begin(), src.items.end());
+        macroExpand(dest, ctx, it->second, src.items, src.items.begin(), src.items.end());
       } else {
         preprocList1(dest, ctx, src);
       }
       return;
     }
-    if (auto ls = dynamic_cast<ListAtom *>(a.get()); ls) {}
+    preprocList1(dest, ctx, src);
   }
+
+  void preprocList1(UNodes &dest, Context &ctx, ListAtom &src) {
+    UNodes items;
+    preproc(items, ctx, src.items);
+    dest.push_back({});
+    dest.back().reset(new ListAtom(std::move(items)));
+  }
+
+  using MacroExpMap = map<const string *, It>;
+
+  static void macroExpand1(
+    MacroExpMap &dest, UNodes &eols, Macro::ItParam itParam, Macro::ItParam endParam, UNodes &src, It it, It end);
+  static void macroExpand2(UNodes &dest, MacroExpMap &map, It endArg, It it, It end);
+  static UNode pushPosNode();
+  static UNode posNode(const Pos &pos);
+  static UNode popPosNode();
+
+  void macroExpand(UNodes &dest, Context &ctx, const Macro &macro, UNodes &src, It it, It end) {
+    MacroExpMap map;
+    UNodes eols;
+    macroExpand1(map, eols, macro.params.begin(), macro.params.end(), src, it, end);
+    UNodes items;
+    pushPos(ctx.posk, ctx.pos);
+    ctx.pos = macro.pos;
+    macroExpand2(items, map, end, macro.body.begin(), macro.body.end());
+    ctx.pos = popPos(ctx.posk);
+    dest.push_back(pushPosNode());
+    dest.push_back(posNode(macro.pos));
+    dest.push_back({});
+    dest.back().reset(new ListAtom(std::move(items)));
+    dest.push_back(popPosNode());
+    dest.insert(dest.end(), eols.begin(), eols.end());
+    ctx.pos.li += eols.size();
+  }
+
+  static void macroExpand1a(MacroExpMap &dest, Macro::ItParam itParam, Macro::ItParam endParam, It end);
+
+  void macroExpand1(
+    MacroExpMap &dest, UNodes &eols, Macro::ItParam itParam, Macro::ItParam endParam, UNodes &src, It it, It end) {
+    if (itParam == endParam) [[unlikely]] {
+      return;
+    }
+    if (it == end) [[unlikely]] {
+      macroExpand1a(dest, itParam, endParam, end);
+      return;
+    }
+    if (Dynamicastable<EOLAtom> {}(*it)) {
+      eols.push_back(std::move(*it));
+      macroExpand1(dest, eols, itParam, endParam, src, src.erase(it), end);
+      return;
+    }
+    if (*itParam) {
+      dest[*itParam] = it;
+      ++it;
+    } else {
+      it = src.erase(it);
+    }
+    macroExpand1(dest, eols, ++itParam, endParam, src, it, end);
+  }
+
+  void macroExpand1a(MacroExpMap &dest, Macro::ItParam itParam, Macro::ItParam endParam, It end) {
+    if (itParam == endParam) [[unlikely]] {
+      return;
+    }
+    if (*itParam) {
+      dest[*itParam] = end;
+    }
+    macroExpand1a(dest, ++itParam, endParam, end);
+  }
+
+  void macroExpand2(UNodes &dest, MacroExpMap &map, It endArg, It it, It end) {
+    if (it == end) [[unlikely]] {
+      return;
+    }
+    if (Dynamicastable<EOLAtom> {}(*it)) {
+      dest.
+    }
+  }
+
+  static UNode pushPosNode();
+  static UNode posNode(const Pos &pos);
+  static UNode popPosNode();
 
   static void clone(UNodes &dest, const UNode &src);
 
