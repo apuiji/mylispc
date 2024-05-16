@@ -27,8 +27,11 @@ namespace zlt::mylispc {
 
   using It = UNodes::iterator;
 
-  static void macroExpand(UNodes &dest, Context &ctx, const Macro &macro, UNodes &src, It it, It end);
   static void preprocList1(UNodes &dest, Context &ctx, ListAtom &src);
+  static void macroExpand(UNodes &dest, Context &ctx, const Macro &macro, UNodes &src, It it, It end);
+  static UNode pushPosNode();
+  static UNode posNode(const Pos &pos);
+  static UNode popPosNode();
 
   void preprocList(UNodes &dest, Context &ctx, ListAtom &src) {
     if (src.items.empty()) [[unlikely]] {
@@ -44,14 +47,19 @@ namespace zlt::mylispc {
       return;
     }
     if (auto id = dynamic_cast<IDAtom *>(a.get()); id) {
-      if (auto it = ctx.macros.find(id->name); it != ctx.macros.end()) {
-        src.items.pop_front();
-        macroExpand(dest, ctx, it->second, src.items, src.items.begin(), src.items.end());
-      } else {
-        preprocList1(dest, ctx, src);
+      auto itMacro = ctx.macros.find(id->name);
+      if (itMacro == ctx.macros.end()) {
+        goto A;
       }
+      src.items.pop_front();
+      UNodes b;
+      b.push_back(pushPosNode());
+      b.push_back(posNode(itMacro->second.pos));
+      macroExpand(b, ctx, itMacro->second, src.items, src.items.begin(), src.items.end());
+      b.push_back(popPosNode());
       return;
     }
+    A:
     preprocList1(dest, ctx, src);
   }
 
@@ -67,9 +75,6 @@ namespace zlt::mylispc {
   static void macroExpand1(
     MacroExpMap &dest, UNodes &eols, Macro::ItParam itParam, Macro::ItParam endParam, UNodes &src, It it, It end);
   static void macroExpand2(UNodes &dest, MacroExpMap &map, It endArg, It it, It end);
-  static UNode pushPosNode();
-  static UNode posNode(const Pos &pos);
-  static UNode popPosNode();
 
   void macroExpand(UNodes &dest, Context &ctx, const Macro &macro, UNodes &src, It it, It end) {
     MacroExpMap map;
