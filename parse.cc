@@ -15,7 +15,7 @@ namespace zlt::mylispc {
     It start1 = nodes(dest, ctx, it, end);
     auto [_1, end1] = lexer(ctx, start1, end);
     if (_1 != token::E0F) {
-      reportBad(ctx.err, bad::UNEXPECTED_TOKEN);
+      reportBad(ctx.err, bad::UNEXPECTED_TOKEN, ctx.pos, ctx.posk);
       throw Bad();
     }
   }
@@ -65,7 +65,7 @@ namespace zlt::mylispc {
       It start2 = nodes(_1, ctx, end0, end);
       auto [_2, end2] = lexer(ctx, start2, end);
       if (_2 != ")"_token) {
-        reportBad(ctx.err, bad::UNEXPECTED_TOKEN);
+        reportBad(ctx.err, bad::UNEXPECTED_TOKEN, ctx.pos, ctx.posk);
         throw Bad();
       }
       dest.reset(new List(std::move(_1)));

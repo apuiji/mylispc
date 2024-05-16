@@ -50,7 +50,7 @@ namespace zlt::mylispc {
     }
     It it1 = find_if_not(it, end, isRawChar);
     if (it1 == it) {
-      reportBad(ctx.err, bad::UNRECOGNIZED_SYMBOL);
+      reportBad(ctx.err, bad::UNRECOGNIZED_SYMBOL, ctx.pos, ctx.posk);
       throw Bad();
     }
     string_view raw(it, it1 - it);
@@ -66,7 +66,7 @@ namespace zlt::mylispc {
 
   Prod lexerStr(string &strval, stringstream &ss, Context &ctx, int quot, It it, It end) {
     if (it == end) [[unlikely]] {
-      reportBad(ctx.err, bad::UNTERMINATED_STRING);
+      reportBad(ctx.err, bad::UNTERMINATED_STRING, ctx.pos, ctx.posk);
       throw Bad();
     }
     if (It it1 = find_if(it, end, [quot] (char c) { return c == '\\' || c == quot; }); it1 != it) {

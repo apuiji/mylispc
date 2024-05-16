@@ -35,7 +35,7 @@ namespace zlt::mylispc {
   void pushPos(PosStack &posk, const Pos &pos);
   Pos popPos(PosStack &posk);
 
-  void reportBad(std::ostream &dest, int bad);
+  void reportBad(std::ostream &dest, int bad, const Pos &pos, const PosStack &posk);
 
   struct Bad {};
 
