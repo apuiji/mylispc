@@ -119,25 +119,47 @@ namespace zlt::mylispc {
     dest.put(')');
   }
 
+  static void macroExpand0a(ostream &dest, Context &ctx, const Macro &macro, It it, It end);
+
+  void macroExpand(ostream &dest, Context &ctx, const Macro &macro, It it, It end) {
+    Pos startPos = ctx.pos;
+    stringstream ss;
+    macroExpand0a(ss, ctx, macro, it, end);
+    auto s = ss.str();
+    remove(ss);
+    ctx.pos = startPos;
+    UNodes a;
+    ParseContext pc(ctx.err, ctx.symbols, ctx.posk);
+    parse(a, pc, s.data(), s.data() + s.size());
+    remove(s);
+    preproc(dest, ctx, a);
+  }
+
   static void outPos(ostream &dest, const Pos &pos);
 
   using MacroExpMap = map<const string *, pair<Pos, It>>;
 
   static void macroExpand1(MacroExpMap &dest, Context &ctx, Macro::ItParam itParam, Macro::ItParam endParam, It it, It end);
-  static void macroExpand2(ostream &dest, Context &ctx, MacroExpMap &map, It it, It end);
+  static void macroExpand2(ostream &dest, Context &ctx, MacroExpMap &map, It endArg, const UNode &src);
 
-  void macroExpand(ostream &dest, Context &ctx, const Macro &macro, It it, It end) {
+  static inline void macroExpand2(ostream &dest, Context &ctx, MacroExpMap &map, It endArg, It it, It end) {
+    for (; it != end; ++it) {
+      macroExpand2(dest, ctx, endArg, *it);
+    }
+  }
+
+  void macroExpand0a(ostream &dest, Context &ctx, const Macro &macro, It it, It end) {
     Pos startPos = ctx.pos;
     MacroExpMap map;
     macroExpand1(map, ctx, macro.params.begin(), macro.params.end(), it, end);
     Pos endPos = ctx.pos;
-    dest << "($pushpos) ($pos";
+    dest << " ($pushpos) ($pos";
     outPos(dest, macro.pos);
     dest.put(')');
     pushPos(ctx.posk, startPos);
     ctx.pos = macro.pos;
-    macroExpand2(dest, ctx, map, macro.body.begin(), macro.body.end());
-    dest << "($poppos) ($pos";
+    macroExpand2(dest, ctx, map, end, macro.body.begin(), macro.body.end());
+    dest << " ($poppos) ($pos";
     outPos(dest, endPos);
     dest.put(')');
     popPos(ctx.posk);
@@ -181,9 +203,31 @@ namespace zlt::mylispc {
     macroExpand1a(dest, ctx, ++itParam, endParam, end);
   }
 
-  void macroExpand2(ostream &dest, MacroExpMap &map, It it, It end) {
-    if (it == end) [[unlikely]] {
+  void macroExpand2(ostream &dest, MacroExpMap &map, It endArg, const UNode &src) {
+    if (Dynamicastable<EOLAtom> {}(**it)) {
+      dest << endl;
+      ++ctx.pos.li;
       return;
+    }
+    if (auto a = dynamic_cast<const NumberAtom *>(src.get()); a) {
+      dest << ' ' << a->value;
+      return;
+    }
+    if (auto a = dynamic_cast<const StringAtom *>(src.get()); a) {
+      dest << " '";
+      outString(dest, *a->value);
+      dest.put('\'');
+      return;
+    }
+    if (auto a = dynamic_cast<const IDAtom *>(src.get()); a) {
+      auto itMap = map.find(a->name);
+      if (itMap == map.end()) {
+        dest << ' ' << *a->name;
+      } else if (string_view(*a->name).starts_with("...")) {
+        dest << " ($pushpos) ($pos";
+        outPos(itMap->pos);
+        dest
+      }
     }
   }
 
