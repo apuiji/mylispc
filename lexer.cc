@@ -1,13 +1,13 @@
 #include<algorithm>
 #include<cctype>
-#include<cstring>
 #include<sstream>
-#include"mylispc.hh"
+#include"parse.hh"
 #include"token.hh"
 
 using namespace std;
 
 namespace zlt::mylispc {
+  using Context = ParseContext;
   using It = const char *;
 
   It hit(It it, It end) noexcept {
@@ -50,11 +50,11 @@ namespace zlt::mylispc {
     }
     It it1 = find_if_not(it, end, isRawChar);
     if (it1 == it) {
-      reportBad(ctx, bad::UNRECOGNIZED_SYMBOL);
+      reportBad(ctx.err, bad::UNRECOGNIZED_SYMBOL);
       throw Bad();
     }
     string_view raw(it, it1 - it);
-    int t = token::ofRaw(numval, ctx, raw);
+    int t = token::ofRaw(numval, ctx.err, raw);
     return { t, it1 };
   }
 
@@ -66,7 +66,7 @@ namespace zlt::mylispc {
 
   Prod lexerStr(string &strval, stringstream &ss, Context &ctx, int quot, It it, It end) {
     if (it == end) [[unlikely]] {
-      reportBad(ctx, bad::UNTERMINATED_STRING);
+      reportBad(ctx.err, bad::UNTERMINATED_STRING);
       throw Bad();
     }
     if (It it1 = find_if(it, end, [quot] (char c) { return c == '\\' || c == quot; }); it1 != it) {

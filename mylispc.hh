@@ -1,14 +1,8 @@
 #pragma once
 
-#include<filesystem>
-#include<iostream>
 #include<list>
-#include<map>
-#include<memory>
-#include<set>
+#include<ostream>
 #include<string>
-#include<type_traits>
-#include<vector>
 #include"zlt/myset.hh"
 
 namespace zlt::mylispc {
@@ -18,6 +12,14 @@ namespace zlt::mylispc {
 
   using UNode = std::unique_ptr<Node>;
   using UNodes = std::list<UNode>;
+
+  using Symbols = MySet<std::string>;
+
+  const std::string *addSymbol(Symbols &dest, std::string &&symbol);
+
+  static inline const std::string *addSymbol(Symbols &dest, std::string_view symbol) {
+    return addSymbol(dest, std::string(symbol));
+  }
 
   struct Pos {
     const std::string *file;
@@ -33,76 +35,7 @@ namespace zlt::mylispc {
   void pushPos(PosStack &posk, const Pos &pos);
   Pos popPos(PosStack &posk);
 
-  struct Macro {
-    using Params = std::vector<const std::string *>;
-    using ItParam = Params::const_iterator;
-    Pos pos;
-    Params params;
-    UNodes body;
-    Macro() = default;
-  };
-
-  struct Context {
-    std::ostream &out;
-    std::ostream &err;
-    MySet<std::string> symbols;
-    PosStack posk;
-    Pos pos;
-    std::map<const std::string *, Macro> macros;
-    Context(std::ostream &out, std::ostream &err) noexcept: out(out), err(err) {}
-    Context(std::ostream &out) noexcept: Context(out, out) {}
-  };
-
-  const std::string *addSymbol(Context &ctx, std::string &&symbol);
-
-  static inline const std::string *addSymbol(Context &ctx, std::string_view symbol) {
-    return addSymbol(ctx, std::string(symbol));
-  }
-
-  void reportBad(Context &ctx, int bad);
-
-  const char *hit(const char *it, const char *end) noexcept;
-
-  /// @param[out] numval when token is NUMBER
-  /// @param[out] strval when token is STRING
-  /// @return [token, end]
-  std::pair<int, const char *> lexer(double &numval, std::string &strval, Context &ctx, const char *it, const char *end);
-
-  static inline std::pair<int, const char *> lexer(Context &ctx, const char *it, const char *end) {
-    double d;
-    std::string s;
-    return lexer(d, s, ctx, it, end);
-  }
-
-  void parse(UNodes &dest, Context &ctx, const char *it, const char *end);
-  void preproc(UNodes &dest, Context &ctx, UNode &src);
-
-  static inline void preproc(UNodes &dest, Context &ctx, UNodes &src) {
-    for (; src.size(); src.pop_front()) {
-      preproc(dest, ctx, src.front());
-    }
-  }
-
-  void trans(Context &ctx, UNodes &src);
-  void optimize(Context &ctx, UNode &src);
-
-  template<class It>
-  requires (std::is_same_v<std::iter_value_t<It>, UNode>)
-  static inline void optimize(Context &ctx, It it, It end) {
-    for (; it != end; ++it) {
-      optimize(*it);
-    }
-  }
-
-  /// @return terminated
-  bool optimizeBody(UNodes &dest, Context &ctx, UNodes::iterator it, UNodes::iterator end);
-
-  /// @param[out] dest main function
-  void trans1(UNode &dest, Context &ctx, UNodes::iterator it, UNodes::iterator end);
-
-  void trans2(Context &ctx, UNode &src);
-
-  void compile(Context &ctx, const UNode &src);
+  void reportBad(std::ostream &dest, int bad);
 
   struct Bad {};
 

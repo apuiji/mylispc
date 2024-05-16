@@ -1,9 +1,11 @@
 #include"nodes.hh"
+#include"parse.hh"
 #include"token.hh"
 
 using namespace std;
 
 namespace zlt::mylispc {
+  using Context = ParseContext;
   using It = const char *;
 
   static It node(UNode &dest, Context &ctx, It start0, It end);
@@ -13,7 +15,7 @@ namespace zlt::mylispc {
     It start1 = nodes(dest, ctx, it, end);
     auto [_1, end1] = lexer(ctx, start1, end);
     if (_1 != token::E0F) {
-      reportBad(ctx, bad::UNEXPECTED_TOKEN);
+      reportBad(ctx.err, bad::UNEXPECTED_TOKEN);
       throw Bad();
     }
   }
@@ -45,16 +47,16 @@ namespace zlt::mylispc {
     }
     string_view raw0(start0, end0 - start0);
     if (_0 == token::NUMBER) {
-      dest.reset(new NumberAtom(addSymbol(ctx, raw0), d));
+      dest.reset(new NumberAtom(addSymbol(ctx.symbols, raw0), d));
       return end0;
     }
     if (_0 == token::STRING) {
-      auto value = addSymbol(ctx, std::move(s));
+      auto value = addSymbol(ctx.symbols, std::move(s));
       dest.reset(new StringAtom(value));
       return end0;
     }
     if (_0 == token::ID) {
-      auto name = addSymbol(ctx, raw0);
+      auto name = addSymbol(ctx.symbols, raw0);
       dest.reset(new IDAtom(name));
       return end0;
     }
@@ -63,7 +65,7 @@ namespace zlt::mylispc {
       It start2 = nodes(_1, ctx, end0, end);
       auto [_2, end2] = lexer(ctx, start2, end);
       if (_2 != ")"_token) {
-        reportBad(ctx, bad::UNEXPECTED_TOKEN);
+        reportBad(ctx.err, bad::UNEXPECTED_TOKEN);
         throw Bad();
       }
       dest.reset(new List(std::move(_1)));

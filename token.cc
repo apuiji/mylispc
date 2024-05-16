@@ -1,15 +1,14 @@
 #include<cmath>
 #include<regex>
-#include"mylispc.hh"
 #include"token.hh"
 
 using namespace std;
 
 namespace zlt::mylispc::token {
-  static bool isNumber(double &dest, Context &ctx, string_view raw);
+  static bool isNumber(double &dest, ostream &err, string_view raw);
 
-  int ofRaw(double &numval, Context &ctx, string_view raw) {
-    if (isNumber(numval, ctx, raw)) {
+  int ofRaw(double &numval, ostream &err, string_view raw) {
+    if (isNumber(numval, err, raw)) {
       return NUMBER;
     }
     #define ifRaw(s) \
@@ -84,7 +83,7 @@ namespace zlt::mylispc::token {
   static bool isBaseInt(double &dest, const regex &re, size_t base, string_view raw);
   static bool isDecimal(double &dest, string_view raw);
 
-  bool isNumber(double &dest, Context &ctx, string_view raw) {
+  bool isNumber(double &dest, ostream &err, string_view raw) {
     try {
       return
         isBaseInt(dest, re2i, 2, raw) ||
@@ -95,7 +94,7 @@ namespace zlt::mylispc::token {
     } catch (invalid_argument) {
       return false;
     } catch (out_of_range) {
-      reportBad(ctx, bad::NUMBER_LITERAL_OOR);
+      reportBad(err, bad::NUMBER_LITERAL_OOR);
       dest = NAN;
       return true;
     }
