@@ -18,6 +18,12 @@ namespace zlt::mylispc {
     outString(dest, (unsigned char *) s.data(), (unsigned char *) s.data() + s.size());
   }
 
+  static inline void outString1(ostream &dest, string_view s) {
+    dest.put('\'');
+    outString(dest, s);
+    dest.put('\'');
+  }
+
   static void preprocList(ostream &dest, Context &ctx, UNodes &src);
 
   void preproc(ostream &dest, Context &ctx, UNode &src) {
@@ -32,9 +38,7 @@ namespace zlt::mylispc {
       return;
     }
     if (auto a = dynamic_cast<const StringAtom *>(src); a) {
-      dest.put('\'');
-      outString(dest, *a->value);
-      dest.put('\'');
+      outString1(dest, *a->value);
       return;
     }
     if (auto a = dynamic_cast<const IDAtom *>(src); a) {
@@ -85,7 +89,7 @@ namespace zlt::mylispc {
 
   void preprocList(ostream &dest, Context &ctx, UNodes &src) {
     if (src.empty()) [[unlikely]] {
-      dest << " ()";
+      dest << "()";
       return;
     }
     if (Dynamicastable<EOLAtom> {}(*src.front())) {
@@ -135,7 +139,16 @@ namespace zlt::mylispc {
     preproc(dest, ctx, a);
   }
 
-  static void outPos(ostream &dest, const Pos &pos);
+  static void outPos(ostream &dest, const Pos &pos) {
+    outString1(dest, *pos.file);
+    dest << ' ' << pos.li;
+  }
+
+  static void outPos1(ostream &dest, const Pos &pos) {
+    dest << "($pos ";
+    outPos(dest, pos);
+    dest.put(')');
+  }
 
   using MacroExpMap = map<const string *, pair<Pos, It>>;
 
@@ -153,23 +166,15 @@ namespace zlt::mylispc {
     MacroExpMap map;
     macroExpand1(map, ctx, macro.params.begin(), macro.params.end(), it, end);
     Pos endPos = ctx.pos;
-    dest << " ($pushpos) ($pos";
-    outPos(dest, macro.pos);
-    dest.put(')');
+    dest << "($pushpos)";
+    outPos1(dest, macro.pos);
     pushPos(ctx.posk, startPos);
     ctx.pos = macro.pos;
     macroExpand2(dest, ctx, map, end, macro.body.begin(), macro.body.end());
-    dest << " ($poppos) ($pos";
-    outPos(dest, endPos);
-    dest.put(')');
+    dest << "($poppos)";
+    outPos1(dest, endPos);
     popPos(ctx.posk);
     ctx.pos = endPos;
-  }
-
-  void outPos(ostream &dest, const Pos &pos) {
-    dest << " '";
-    outString(dest, *pos.file);
-    dest << ' ' << pos.li;
   }
 
   static void macroExpand1a(MacroExpMap &dest, Context &ctx, Macro::ItParam itParam, Macro::ItParam endParam, It end);
@@ -203,32 +208,85 @@ namespace zlt::mylispc {
     macroExpand1a(dest, ctx, ++itParam, endParam, end);
   }
 
+  static void macroExpand3(ostream &dest, const UNode &src);
+
+  static inline void macroExpand3(ostream &dest, It it, It end) {
+    for (; it != end; ++it) {
+      macroExpand3(dest, *it);
+    }
+  }
+
   void macroExpand2(ostream &dest, MacroExpMap &map, It endArg, const UNode &src) {
     if (Dynamicastable<EOLAtom> {}(**it)) {
       dest << endl;
       ++ctx.pos.li;
       return;
     }
+    dest.put(' ');
     if (auto a = dynamic_cast<const NumberAtom *>(src.get()); a) {
-      dest << ' ' << a->value;
+      dest << a->value;
       return;
     }
     if (auto a = dynamic_cast<const StringAtom *>(src.get()); a) {
-      dest << " '";
-      outString(dest, *a->value);
-      dest.put('\'');
+      outString1(dest, *a->value);
       return;
     }
     if (auto a = dynamic_cast<const IDAtom *>(src.get()); a) {
       auto itMap = map.find(a->name);
       if (itMap == map.end()) {
-        dest << ' ' << *a->name;
-      } else if (string_view(*a->name).starts_with("...")) {
-        dest << " ($pushpos) ($pos";
-        outPos(itMap->pos);
-        dest
+        dest << *a->name;
+        return;
       }
+      if (itMap->second == endArg) {
+        return;
+      }
+      dest << "($pushpos)";
+      outPos1(itMap->first);
+      if (string_view(*a->name).starts_with("...")) {
+        macroExpand3(dest, itMap->second, endArg);
+      } else {
+        macroExpand3(dest, *itMap->second);
+      }
+      dest << "($poppos)";
+      outPos1(ctx.pos);
+      return;
     }
+    if (auto a = dynamic_cast<const TokenAtom *>(src.get()); a) {
+      dest << token::raw(a->token);
+      return;
+    }
+    auto &items = static_cast<const ListAtom &>(*src).items;
+    dest.put('(');
+    macroExpand2(dest, map, endArg, item.begin(), items.end());
+    dest.put(')');
+  }
+
+  void macroExpand3(ostream &dest, const UNode &src) {
+    if (Dynamicastable<EOLAtom> {}(*src)) {
+      dest << endl;
+      return;
+    }
+    dest.put(' ');
+    if (auto a = dynamic_cast<const NumberAtom *>(src.get()); a) {
+      dest << a->value;
+      return;
+    }
+    if (auto a = dynamic_cast<const StringAtom *>(src.get()); a) {
+      outString1(dest, *a->value);
+      return;
+    }
+    if (auto a = dynamic_cast<const IDAtom *>(src.get()); a) {
+      dest << *a->name;
+      return;
+    }
+    if (auto a = dynamic_cast<const TokenAtom *>(src.get()); a) {
+      dest << token::raw(a->token);
+      return;
+    }
+    auto &items = static_cast<const ListAtom &>(*src).items;
+    dest.put('(');
+    macroExpand3(dest, items.begin(), items.end());
+    dest.put(')');
   }
 
   static Pound pound;

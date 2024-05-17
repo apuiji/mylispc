@@ -1,11 +1,4 @@
 HEADS = \
-	zlt/bitree.h \
-	zlt/bitree.hh \
-	zlt/myset.hh \
-	zlt/rbtree.h \
-	zlt/rbtree.hh \
-	zlt/xyz.h \
-	zlt/xyz.hh \
 	mylisp/opcode.hh \
 	mylispc.hh \
 	nodes.hh \
