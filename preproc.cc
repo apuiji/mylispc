@@ -289,7 +289,44 @@ namespace zlt::mylispc {
     dest.put(')');
   }
 
-  static Pound pound;
+  void pound(ostream &dest, Context &ctx, UNodes &src) {
+    if (src.empty()) [[unlikely]] {
+      dest << "''";
+      return;
+    }
+    auto &a = src.front();
+    if (Dynamicastable<EOLAtom> {}(*a)) {
+      ++ctx.pos.li;
+      src.pop_front();
+      pound(dest, ctx, src);
+      return;
+    }
+    dest.put('\'');
+    if (auto b = dynamic_cast<NumberAtom *>(a.get()); b) {
+      dest << b->raw;
+    } else if (auto b = dynamic_cast<IDAtom *>(a.get()); b) {
+      dest << b->name;
+    } else if (auto b = dynamic_cast<TokenAtom *>(a.get()); b) {
+      dest << token::raw(b->token);
+    } else {
+      reportBad(ctx.err, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
+    }
+    dest.put('\'');
+  }
+
+  void pound2(ostream &dest, Context &ctx, UNodes &src) {
+    if (src.empty()) [[unlikely]] {
+      return;
+    }
+    auto &a = src.front();
+    if (Dynamicastable<EOLAtom> {}(*a)) {
+      ++ctx.pos.li;
+      src.pop_front();
+      pound2(dest, ctx, src);
+      return;
+    }
+  }
+
   static Pound pound2;
   static Pound poundDef;
   static Pound poundIf;

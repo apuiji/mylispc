@@ -46,15 +46,23 @@ namespace zlt::mylispc {
       WARN = 0x100,
       NUMBER_LITERAL_OOR,
       // warns end
+      // errors begin
       ERROR = 0x200,
+      INV_PREPROC_ARG,
+      // errors end
+      // fatals begin
       CANNOT_OPEN_FILE,
       ILL_FN_PARAM,
       ILL_MACRO_PARAM,
-      INV_PREPROC_ARG,
       MACRO_ALREADY_DEFINED,
       UNEXPECTED_TOKEN,
       UNRECOGNIZED_SYMBOL,
       UNTERMINATED_STRING
+      // fatals end
     };
+
+    static inline int level(int bad) noexcept {
+      return bad & 0xf00;
+    }
   }
 }
