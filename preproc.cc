@@ -282,7 +282,13 @@ namespace zlt::mylispc {
     dest.put(')');
   }
 
-  static void outPound(Context &ctx, It it, It end) noexcept;
+  static void outPound(Context &ctx, const UNode &src) noexcept;
+
+  static inline void outPound(Context &ctx, It it, It end) noexcept {
+    for (; it != end; ++it) {
+      outPound(*it);
+    }
+  }
 
   static inline void outPound(Context &ctx, UNodes &src) noexcept {
     outPound(ctx, src.begin(), src.end());
@@ -314,11 +320,14 @@ namespace zlt::mylispc {
     outPound(ctx, src);
   }
 
-  void outPound(Context &ctx, It it, It end) noexcept {
-    for (; it != end; ++it) {
-      if (Dynamicastable<EOLAtom> {}(*it)) {
-        ++ctx.pos.li;
-      }
+  void outPound(Context &ctx, const UNode &src) noexcept {
+    if (Dynamicastable<EOLAtom> {}(*src)) {
+      ++ctx.pos.li;
+      return;
+    }
+    if (auto a = dynamic_cast<const ListAtom *>(src.get()); a) {
+      outPound(a->items);
+      return;
     }
   }
 
@@ -367,12 +376,14 @@ namespace zlt::mylispc {
       reportBad(ctx.err, bad::MACRO_ALREADY_DEFINED, ctx.pos, ctx.posk);
       goto A;
     }
-    src.pop_back();
+    src.pop_front();
     poundDef1(ctx.macros[name], ctx, src);
     return;
     A:
     outPound(ctx, src);
   }
+
+  static void makeMacroParams(Macro::Params &dest, It it, It end);
 
   void poundDef1(Macro &dest, Context &ctx, UNodes &src) {
     if (src.empty()) [[unlikely]] {
@@ -388,10 +399,26 @@ namespace zlt::mylispc {
     auto ls = dynamic_cast<ListAtom *>(a.get());
     if (!ls) {
       reportBad(ctx, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
-      goto A;
+      outPound(ctx, src);
+      return;
     }
-    A:
-    outPound(ctx, src);
+    makeMacroParams(dest, ls->items.begin(), ls->items.end());
+    src.pop_front();
+    dest.pos = ctx.pos;
+    dest.body = std::move(src);
+    outPound(ctx, dest.body);
+  }
+
+  void makeMacroParams(Macro::Params &dest, It it, It end) {
+    if (it == end) [[unlikely]] {
+      return;
+    }
+    if (auto a = dynamic_cast<const IDAtom *>(it->get()); a) {
+      dest.push_back(a->name);
+      makeMacroParams(dest, ++it, end);
+      return;
+    }
+    if (auto a = dynamic_cast<const ListAtom *>(it->get()); a) {}
   }
 
   static Pound poundIf;
