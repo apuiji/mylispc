@@ -49,12 +49,12 @@ namespace zlt::mylispc {
       // errors begin
       ERROR = 0x200,
       INV_PREPROC_ARG,
+      MACRO_ALREADY_DEFINED,
       // errors end
       // fatals begin
       CANNOT_OPEN_FILE,
       ILL_FN_PARAM,
       ILL_MACRO_PARAM,
-      MACRO_ALREADY_DEFINED,
       UNEXPECTED_TOKEN,
       UNRECOGNIZED_SYMBOL,
       UNTERMINATED_STRING

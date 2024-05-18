@@ -34,7 +34,7 @@ namespace zlt::mylispc {
     }
     dest.put(' ');
     if (auto a = dynamic_cast<const NumberAtom *>(src); a) {
-      dest << a->value;
+      dest << *a->raw;
       return;
     }
     if (auto a = dynamic_cast<const StringAtom *>(src); a) {
@@ -42,7 +42,7 @@ namespace zlt::mylispc {
       return;
     }
     if (auto a = dynamic_cast<const IDAtom *>(src); a) {
-      dest << a->name;
+      dest << *a->name;
       return;
     }
     if (auto a = dynamic_cast<const TokenAtom *>(src); a) {
@@ -77,7 +77,11 @@ namespace zlt::mylispc {
     outString(dest, it + 1, end);
   }
 
-  static void preprocList1(ostream &dest, Context &ctx, UNodes &src);
+  static inline void preprocList1(ostream &dest, Context &ctx, UNodes &src) {
+    dest.put('(');
+    preproc(dest, ctx, src);
+    dest.put(')');
+  }
 
   using It = UNodes::const_iterator;
 
@@ -117,28 +121,6 @@ namespace zlt::mylispc {
     preprocList1(dest, ctx, src);
   }
 
-  void preprocList1(ostream &dest, Context &ctx, UNodes &src) {
-    dest.put('(');
-    preproc(dest, ctx, src);
-    dest.put(')');
-  }
-
-  static void macroExpand0a(ostream &dest, Context &ctx, const Macro &macro, It it, It end);
-
-  void macroExpand(ostream &dest, Context &ctx, const Macro &macro, It it, It end) {
-    Pos startPos = ctx.pos;
-    stringstream ss;
-    macroExpand0a(ss, ctx, macro, it, end);
-    auto s = ss.str();
-    remove(ss);
-    ctx.pos = startPos;
-    UNodes a;
-    ParseContext pc(ctx.err, ctx.symbols, ctx.posk);
-    parse(a, pc, s.data(), s.data() + s.size());
-    remove(s);
-    preproc(dest, ctx, a);
-  }
-
   static void outPos(ostream &dest, const Pos &pos) {
     outString1(dest, *pos.file);
     dest << ' ' << pos.li;
@@ -157,20 +139,31 @@ namespace zlt::mylispc {
 
   static inline void macroExpand2(ostream &dest, Context &ctx, MacroExpMap &map, It endArg, It it, It end) {
     for (; it != end; ++it) {
-      macroExpand2(dest, ctx, endArg, *it);
+      macroExpand2(dest, ctx, map, endArg, *it);
     }
   }
 
-  void macroExpand0a(ostream &dest, Context &ctx, const Macro &macro, It it, It end) {
+  void macroExpand(ostream &dest, Context &ctx, const Macro &macro, It it, It end) {
     Pos startPos = ctx.pos;
     MacroExpMap map;
     macroExpand1(map, ctx, macro.params.begin(), macro.params.end(), it, end);
     Pos endPos = ctx.pos;
+    ctx.pos = macro.pos;
+    stringstream ss;
+    macroExpand2(ss, ctx, map, end, macro.body.begin(), macro.body.end());
+    remove(map);
+    auto s = ss.str();
+    remove(ss);
     dest << "($pushpos)";
     outPos1(dest, macro.pos);
     pushPos(ctx.posk, startPos);
     ctx.pos = macro.pos;
-    macroExpand2(dest, ctx, map, end, macro.body.begin(), macro.body.end());
+    UNodes a;
+    ParseContext pc(ctx.err, ctx.symbols, ctx.posk);
+    parse(a, pc, s.data(), s.data() + s.size());
+    remove(s);
+    ctx.pos = macro.pos;
+    preproc(dest, ctx, a);
     dest << "($poppos)";
     outPos1(dest, endPos);
     popPos(ctx.posk);
@@ -224,7 +217,7 @@ namespace zlt::mylispc {
     }
     dest.put(' ');
     if (auto a = dynamic_cast<const NumberAtom *>(src.get()); a) {
-      dest << a->value;
+      dest << *a->raw;
       return;
     }
     if (auto a = dynamic_cast<const StringAtom *>(src.get()); a) {
@@ -268,7 +261,7 @@ namespace zlt::mylispc {
     }
     dest.put(' ');
     if (auto a = dynamic_cast<const NumberAtom *>(src.get()); a) {
-      dest << a->value;
+      dest << *a->raw;
       return;
     }
     if (auto a = dynamic_cast<const StringAtom *>(src.get()); a) {
@@ -289,6 +282,12 @@ namespace zlt::mylispc {
     dest.put(')');
   }
 
+  static void outPound(Context &ctx, It it, It end) noexcept;
+
+  static inline void outPound(Context &ctx, UNodes &src) noexcept {
+    outPound(ctx, src.begin(), src.end());
+  }
+
   void pound(ostream &dest, Context &ctx, UNodes &src) {
     if (src.empty()) [[unlikely]] {
       dest << "''";
@@ -303,15 +302,24 @@ namespace zlt::mylispc {
     }
     dest.put('\'');
     if (auto b = dynamic_cast<NumberAtom *>(a.get()); b) {
-      dest << b->raw;
+      dest << *b->raw;
     } else if (auto b = dynamic_cast<IDAtom *>(a.get()); b) {
-      dest << b->name;
+      dest << *b->name;
     } else if (auto b = dynamic_cast<TokenAtom *>(a.get()); b) {
       dest << token::raw(b->token);
     } else {
       reportBad(ctx.err, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
     }
     dest.put('\'');
+    outPound(ctx, src);
+  }
+
+  void outPound(Context &ctx, It it, It end) noexcept {
+    for (; it != end; ++it) {
+      if (Dynamicastable<EOLAtom> {}(*it)) {
+        ++ctx.pos.li;
+      }
+    }
   }
 
   void pound2(ostream &dest, Context &ctx, UNodes &src) {
@@ -321,14 +329,71 @@ namespace zlt::mylispc {
     auto &a = src.front();
     if (Dynamicastable<EOLAtom> {}(*a)) {
       ++ctx.pos.li;
-      src.pop_front();
-      pound2(dest, ctx, src);
-      return;
+      goto A;
     }
+    if (auto b = dynamic_cast<NumberAtom *>(a.get()); b) {
+      dest << *b->raw;
+    } else if (auto b = dynamic_cast<IDAtom *>(a.get()); b) {
+      dest << *b->name;
+    } else if (auto b = dynamic_cast<TokenAtom *>(a.get()); b) {
+      dest << token::raw(b->token);
+    } else {
+      reportBad(ctx.err, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
+    }
+    A:
+    src.pop_front();
+    pound2(dest, ctx, src);
   }
 
-  static Pound pound2;
-  static Pound poundDef;
+  static void poundDef1(Macro &dest, Context &ctx, UNodes &src);
+
+  void poundDef(ostream &dest, Context &ctx, UNodes &src) {
+    if (src.empty()) [[unlikely]] {
+      return;
+    }
+    auto &a = src.front();
+    if (Dynamicastable<EOLAtom> {}(*a)) {
+      ++ctx.pos.li;
+      src.pop_front();
+      poundDef(dest, ctx, src);
+      return;
+    }
+    auto id = dynamic_cast<IDAtom *>(a.get());
+    if (!id) {
+      reportBad(ctx.err, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
+      goto A;
+    }
+    if (ctx.macros.find(id->name) != ctx.macros.end()) {
+      reportBad(ctx.err, bad::MACRO_ALREADY_DEFINED, ctx.pos, ctx.posk);
+      goto A;
+    }
+    src.pop_back();
+    poundDef1(ctx.macros[name], ctx, src);
+    return;
+    A:
+    outPound(ctx, src);
+  }
+
+  void poundDef1(Macro &dest, Context &ctx, UNodes &src) {
+    if (src.empty()) [[unlikely]] {
+      return;
+    }
+    auto &a = src.front();
+    if (Dynamicastable<EOLAtom> {}(*a)) {
+      ++ctx.pos.li;
+      src.pop_front();
+      poundDef1(dest, ctx, src);
+      return;
+    }
+    auto ls = dynamic_cast<ListAtom *>(a.get());
+    if (!ls) {
+      reportBad(ctx, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
+      goto A;
+    }
+    A:
+    outPound(ctx, src);
+  }
+
   static Pound poundIf;
   static Pound poundInclude;
   static Pound poundMovedef;
