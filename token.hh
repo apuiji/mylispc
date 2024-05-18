@@ -12,19 +12,14 @@ namespace zlt::mylispc::token {
     X
   };
 
-  consteval int symbol(std::string_view raw, auto ...s) {
-    int i = X;
-    ((++i, raw == s) || ... || (i = -1));
-    return i;
-  }
-
   template<size_t N>
   struct Symbol {
     int value;
     consteval Symbol(const char (&s)[N]):
     value(
-      symbol(
+      strEnumValue(
         s,
+        X,
         // keywords begin
         "callee",
         "def",
