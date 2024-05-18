@@ -27,12 +27,12 @@ namespace zlt::mylispc {
   static void preprocList(ostream &dest, Context &ctx, UNodes &src);
 
   void preproc(ostream &dest, Context &ctx, UNode &src) {
-    dest.put(' ');
     if (Dynamicastable<EOLAtom> {}(*src)) {
       dest << endl;
       ++ctx.pos.li;
       return;
     }
+    dest.put(' ');
     if (auto a = dynamic_cast<const NumberAtom *>(src); a) {
       dest << a->value;
       return;

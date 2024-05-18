@@ -1,5 +1,7 @@
 #include<algorithm>
 #include<cctype>
+#include<cmath>
+#include<regex>
 #include<sstream>
 #include"parse.hh"
 #include"token.hh"
@@ -30,6 +32,8 @@ namespace zlt::mylispc {
 
   static Prod lexerStr(string &strval, stringstream &ss, Context &ctx, int quot, It it, It end);
   static bool isRawChar(char c) noexcept;
+  static bool isNumber(double &dest, Context &ctx, string_view raw);
+  static int rawToken(string_view raw) noexcept;
 
   Prod lexer(double &numval, string &strval, Context &ctx, It it, It end) {
     if (it == end) [[unlikely]] {
@@ -54,8 +58,10 @@ namespace zlt::mylispc {
       throw Bad();
     }
     string_view raw(it, it1 - it);
-    int t = token::ofRaw(numval, ctx.err, ctx.pos, ctx.posk, raw);
-    return { t, it1 };
+    if (isNumber(numval, ctx, raw)) {
+      return { token::NUMBER, it1 };
+    }
+    return { rawToken(raw), it1 };
   }
 
   bool isRawChar(char c) noexcept {
@@ -136,5 +142,109 @@ namespace zlt::mylispc {
     }
     dest = '\\';
     return 0;
+  }
+
+  static const regex re2i("([+-]?)0[Bb]([01]+)");
+  static const regex re4i("([+-]?)0[Qq]([0-3]+)");
+  static const regex re8i("([+-]?)0[Oo]([0-7]+)");
+  static const regex re16i("([+-]?)0[Xx]([[:xdigit:]]+)");
+
+  static bool isBaseInt(double &dest, const regex &re, size_t base, string_view raw);
+  static bool isDecimal(double &dest, string_view raw);
+
+  bool isNumber(double &dest, Context &ctx, string_view raw) {
+    try {
+      return
+        isBaseInt(dest, re2i, 2, raw) ||
+        isBaseInt(dest, re4i, 4, raw) ||
+        isBaseInt(dest, re8i, 8, raw) ||
+        isBaseInt(dest, re16i, 16, raw) ||
+        isDecimal(dest, raw);
+    } catch (invalid_argument) {
+      return false;
+    } catch (out_of_range) {
+      reportBad(ctx.err, bad::NUMBER_LITERAL_OOR, ctx.pos, ctx.posk);
+      dest = NAN;
+      return true;
+    }
+  }
+
+  bool isBaseInt(double &dest, const regex &re, size_t base, string_view raw) {
+    cmatch m;
+    if (!regex_match(raw.data(), raw.data() + raw.size(), m, re)) {
+      return false;
+    }
+    dest = stoi(m.str(1) + m.str(2), nullptr, base);
+    return true;
+  }
+
+  bool isDecimal(double &dest, string_view raw) {
+    size_t n;
+    dest = stod(string(raw), &n);
+    return n == raw.size();
+  }
+
+  int rawToken(string_view raw) noexcept {
+    #define ifRaw(s) \
+    if (raw == s) { \
+      return s##_token; \
+    }
+    // keywords begin
+    ifRaw("callee");
+    ifRaw("def");
+    ifRaw("defer");
+    ifRaw("forward");
+    ifRaw("guard");
+    ifRaw("if");
+    ifRaw("length");
+    ifRaw("return");
+    ifRaw("throw");
+    ifRaw("try");
+    // keywords end
+    // preproc operations begin
+    ifRaw("#");
+    ifRaw("##");
+    ifRaw("#def");
+    ifRaw("#if");
+    ifRaw("#include");
+    ifRaw("#movedef");
+    ifRaw("#undef");
+    // preproc operations end
+    // mark operations begin
+    ifRaw("$poppos");
+    ifRaw("$pos");
+    ifRaw("$pushpos");
+    // mark operations end
+    ifRaw("!");
+    ifRaw("%");
+    ifRaw("&&");
+    ifRaw("&");
+    ifRaw("(");
+    ifRaw(")");
+    ifRaw("**");
+    ifRaw("*");
+    ifRaw("+");
+    ifRaw(",");
+    ifRaw("-");
+    ifRaw(".");
+    ifRaw("/");
+    ifRaw("<<");
+    ifRaw("<=>");
+    ifRaw("<=");
+    ifRaw("<");
+    ifRaw("==");
+    ifRaw("=");
+    ifRaw(">=");
+    ifRaw(">>>");
+    ifRaw(">>");
+    ifRaw(">");
+    ifRaw("@");
+    ifRaw("^^");
+    ifRaw("^");
+    ifRaw("||");
+    ifRaw("|");
+    ifRaw("~");
+    #undef ifRaw
+    return token::ID;
   }
 }

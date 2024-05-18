@@ -12,8 +12,6 @@ namespace zlt::mylispc::token {
     X
   };
 
-  int ofRaw(double &numval, std::ostream &err, const Pos &pos, const PosStack &posk, std::string_view raw);
-
   consteval int symbol(std::string_view raw, auto ...s) {
     int i = X;
     ((++i, raw == s) || ... || (i = -1));
