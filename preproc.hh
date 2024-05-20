@@ -22,7 +22,7 @@ namespace zlt::mylispc {
     Pos pos;
     PosStack posk;
     std::map<const std::string *, Macro> macros;
-    PreprocContext(std::ostream &err, Symbols &symbols) noexcept: out(out), err(err), symbols(symbols) {}
+    PreprocContext(std::ostream &err, Symbols &symbols, const Pos &pos) noexcept: err(err), symbols(symbols), pos(pos) {}
   };
 
   void preproc(std::ostream &dest, PreprocContext &ctx, UNode &src);
