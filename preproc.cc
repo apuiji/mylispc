@@ -282,7 +282,7 @@ namespace zlt::mylispc {
   }
 
   static void hitPoundArg(Context &ctx, UNodes &src);
-  static void skipPoundArgs(Context &ctx, UNodes &src);
+  static void skipPoundArgs(Context &ctx, It it, It end);
 
   void pound(ostream &dest, Context &ctx, UNodes &src) {
     hitPoundArg(ctx, src);
@@ -302,7 +302,8 @@ namespace zlt::mylispc {
       reportBad(ctx.err, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
     }
     dest.put('\'');
-    skipPoundArgs(ctx, src);
+    src.pop_front();
+    skipPoundArgs(ctx, src.begin(), src.end());
   }
 
   void hitPoundArg(Context &ctx, UNodes &src) {
@@ -317,21 +318,20 @@ namespace zlt::mylispc {
     }
   }
 
-  void skipPoundArgs(Context &ctx, UNodes &src) {
-    if (src.empty()) [[unlikely]] {
+  void skipPoundArgs(Context &ctx, It it, It end) {
+    if (it == end) [[unlikely]] {
       return;
     }
-    if (Dynamicastable<EOLAtom> {}(*src.front())) {
+    if (Dynamicastable<EOLAtom> {}(**it)) {
       ctx.err << endl;
-    } else if (auto a = dynamic_cast<ListAtom *>(src.front().get()); a) {
-      skipPoundArgs(ctx, a->items);
+    } else if (auto a = dynamic_cast<ListAtom *>(it->get()); a) {
+      skipPoundArgs(ctx, a->items.begin(), a->items.end());
     }
-    src.pop_front();
-    skipPoundArgs(ctx, src);
+    skipPoundArgs(ctx, ++it, end);
   }
 
   void pound2(ostream &dest, Context &ctx, UNodes &src) {
-    hitPoundArg(dest, src);
+    hitPoundArg(ctx, src);
     if (src.empty()) [[unlikely]] {
       return;
     }
@@ -353,7 +353,7 @@ namespace zlt::mylispc {
   static void poundDef1(Macro &dest, Context &ctx, UNodes &src);
 
   void poundDef(ostream &dest, Context &ctx, UNodes &src) {
-    hitPoundArg(dest, src);
+    hitPoundArg(ctx, src);
     if (src.empty()) [[unlikely]] {
       return;
     }
@@ -372,37 +372,32 @@ namespace zlt::mylispc {
     poundDef1(ctx.macros[name], ctx, src);
     return;
     A:
-    skipPoundArgs(ctx, src);
+    skipPoundArgs(ctx, src.begin(), src.end());
   }
 
-  static void makeMacroParams(Macro::Params &dest, It it, It end);
+  static void makeMacroParams(Macro::Params &dest, Context &ctx, It it, It end);
 
   void poundDef1(Macro &dest, Context &ctx, UNodes &src) {
-    hitPoundArg(ctx.)
+    hitPoundArg(ctx, src);
     if (src.empty()) [[unlikely]] {
       return;
     }
     auto &a = src.front();
-    if (Dynamicastable<EOLAtom> {}(*a)) {
-      ++ctx.pos.li;
-      src.pop_front();
-      poundDef1(dest, ctx, src);
-      return;
-    }
     auto ls = dynamic_cast<ListAtom *>(a.get());
     if (!ls) {
       reportBad(ctx, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
-      outPound(ctx, src);
+      skipPoundArgs(ctx, src.begin(), src.end());
       return;
     }
-    makeMacroParams(dest, ls->items.begin(), ls->items.end());
+    makeMacroParams(dest, ctx, ls->items.begin(), ls->items.end());
     src.pop_front();
+    hitPoundArg(ctx, src);
     dest.pos = ctx.pos;
+    skipPoundArgs(ctx, src.begin(), src.end());
     dest.body = std::move(src);
-    outPound(ctx, dest.body);
   }
 
-  void makeMacroParams(Macro::Params &dest, It it, It end) {
+  void makeMacroParams(Macro::Params &dest, Context &ctx, It it, It end) {
     if (it == end) [[unlikely]] {
       return;
     }
