@@ -312,10 +312,9 @@ namespace zlt::mylispc {
     }
     if (Dynamicastable<EOLAtom> {}(*src.front())) {
       ctx.err << endl;
-      src.pop_front();
-      hitPoundArg(ctx, src);
-      return;
     }
+    src.pop_front();
+    hitPoundArg(ctx, src);
   }
 
   void skipPoundArgs(Context &ctx, It it, It end) {
@@ -375,7 +374,7 @@ namespace zlt::mylispc {
     skipPoundArgs(ctx, src.begin(), src.end());
   }
 
-  static void makeMacroParams(Macro::Params &dest, Context &ctx, It it, It end);
+  static void makeMacroParams(Macro::Params &dest, Context &ctx, UNodes &src);
 
   void poundDef1(Macro &dest, Context &ctx, UNodes &src) {
     hitPoundArg(ctx, src);
@@ -389,7 +388,7 @@ namespace zlt::mylispc {
       skipPoundArgs(ctx, src.begin(), src.end());
       return;
     }
-    makeMacroParams(dest, ctx, ls->items.begin(), ls->items.end());
+    makeMacroParams(dest, ctx, ls->items);
     src.pop_front();
     hitPoundArg(ctx, src);
     dest.pos = ctx.pos;
@@ -397,19 +396,39 @@ namespace zlt::mylispc {
     dest.body = std::move(src);
   }
 
-  void makeMacroParams(Macro::Params &dest, Context &ctx, It it, It end) {
+  void makeMacroParams(Macro::Params &dest, Context &ctx, UNodes &src) {
     if (it == end) [[unlikely]] {
       return;
     }
-    if (auto a = dynamic_cast<const IDAtom *>(it->get()); a) {
+    hitPoundArg(ctx, src);
+    if (auto a = dynamic_cast<const IDAtom *>(src.front().get()); a) {
       dest.push_back(a->name);
-      makeMacroParams(dest, ++it, end);
-      return;
+      if (string_view(*a->name).starts_with("...")) {
+        src.pop_front();
+        skipPoundArgs(ctx, src);
+        return;
+      }
+    } else if (auto a = dynamic_cast<const ListAtom *>(src.front().get()); a) {
+      hitPoundArg(ctx, a->items);
+      if (a->items.empty()) {
+        dest.push_back(nullptr);
+      } else {
+        reportBad(ctx.err, bad::ILL_MACRO_PARAM, ctx.pos, ctx.posk);
+      }
+    } else {
+      reportBad(ctx.err, bad::ILL_MACRO_PARAM, ctx.pos, ctx.posk);
     }
-    if (auto a = dynamic_cast<const ListAtom *>(it->get()); a) {}
+    src.pop_front();
+    makeMacroParams(dest, cts, src);
   }
 
-  static Pound poundIf;
+  void poundIf(ostream &dest, Context &ctx, UNodes &src) {
+    hitPoundArg(ctx, src);
+    if (src.empty()) [[unlikely]] {
+      return;
+    }
+  }
+
   static Pound poundInclude;
   static Pound poundMovedef;
   static Pound poundUndef;
