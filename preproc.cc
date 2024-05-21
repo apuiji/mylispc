@@ -516,11 +516,14 @@ namespace zlt::mylispc {
       skipPoundArgs(dest, ctx, src);
       return;
     }
+    stringstream ss;
+    Pos pos(addSymbol(ctx.symbols, std::move(file)), 0);
     pushPos(ctx.posk, ctx.pos);
     src.pop_front();
     skipPoundArgs(dest, ctx, src);
+    Pos endPos = ctx.pos;
     dest << "($pushpos)";
-    outPos1(dest, );
+    outPos1(dest, pos);
   }
 
   static Pound poundMovedef;
