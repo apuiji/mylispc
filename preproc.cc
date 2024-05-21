@@ -1,4 +1,5 @@
 #include<algorithm>
+#include<filesystem>
 #include<fstream>
 #include<iterator>
 #include<sstream>
@@ -491,15 +492,35 @@ namespace zlt::mylispc {
     poundElse(dest, ctx, src);
   }
 
-  static bool includeFile(string &dest, Context &ctx, UNodes &src);
-
-  static inline const string *includeFile(Context &ctx, UNodes &src) {
-    string s;
-    return includeFile(s, ctx, src) ? addSymbol(ctx.symbols, std::move(s)) : nullptr;
-  }
+  static bool includeFile(string &dest, Context &ctx, const UNode &src);
 
   void poundInclude(ostream &dest, Context &ctx, UNodes &src) {
-    ;
+    hitPoundArg(dest, ctx, src);
+    if (src.empty()) [[unlikely]] {
+      return;
+    }
+    string file;
+    if (!includeFile(file, ctx, src.front())) {
+      reportBad(ctx.err, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
+      skipPoundArgs(dest, ctx, src);
+      return;
+    }
+    filesystem::path path(*file);
+    if (path.is_relative()) {
+      path = filesystem::path(*ctx.pos.file).parent_path() / path;
+    }
+    try {
+      path = filesystem::canonical(path);
+    } catch (...) {
+      reportBad(ctx.err, bad::CANNOT_INCLUDE, ctx.pos, ctx.posk);
+      skipPoundArgs(dest, ctx, src);
+      return;
+    }
+    pushPos(ctx.posk, ctx.pos);
+    src.pop_front();
+    skipPoundArgs(dest, ctx, src);
+    dest << "($pushpos)";
+    outPos1(dest, );
   }
 
   static Pound poundMovedef;
