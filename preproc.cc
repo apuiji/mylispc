@@ -507,7 +507,6 @@ namespace zlt::mylispc {
     string file;
     if (!includeFile(file, ctx, src.front())) {
       reportBad(ctx.err, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
-      skipPoundArgs(dest, ctx, src);
       return;
     }
     filesystem::path path(*file);
@@ -518,17 +517,15 @@ namespace zlt::mylispc {
       path = filesystem::canonical(path);
     } catch (...) {
       reportBad(ctx.err, bad::CANNOT_INCLUDE, ctx.pos, ctx.posk);
-      skipPoundArgs(dest, ctx, src);
       return;
     }
-    stringstream ss;
-    Pos pos(addSymbol(ctx.symbols, std::move(file)), 0);
     pushPos(ctx.posk, ctx.pos);
-    src.pop_front();
-    skipPoundArgs(dest, ctx, src);
-    Pos endPos = ctx.pos;
+    ctx.pos = Pos(addSymbol(ctx.symbols, std::move(file)), 0);
     dest << "($pushpos)";
-    outPos1(dest, pos);
+    outPos1(dest, ctx.pos);
+    stringstream ss;
+    dest << "($poppos)";
+    popPos(ctx.posk);
   }
 
   static Pound poundMovedef;
