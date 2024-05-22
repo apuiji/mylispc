@@ -28,10 +28,8 @@ namespace zlt::mylispc {
   void preproc(std::ostream &dest, PreprocContext &ctx, UNode &src);
 
   static inline void preproc(std::ostream &dest, PreprocContext &ctx, UNodes &src) {
-    auto it = src.cbegin();
-    auto end = src.cend();
-    for (; it != end; it = src.erase(it)) {
-      preproc(dest, ctx, *it);
+    for (; src.size(); src.pop_front()) {
+      preproc(dest, ctx, src.front());
     }
   }
 }

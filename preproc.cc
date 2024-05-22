@@ -419,6 +419,7 @@ namespace zlt::mylispc {
 
   static void poundElse(ostream &dest, Context &ctx, UNodes &src);
   static void poundIfdef(ostream &dest, Context &ctx, UNodes &src);
+  static void poundThen(ostream &dest, Context &ctx, UNodes &src);
 
   void poundIf(ostream &dest, Context &ctx, UNodes &src) {
     hitPoundArg(dest, ctx, src);
@@ -427,6 +428,7 @@ namespace zlt::mylispc {
     }
     if (auto a = dynamic_cast<ListAtom *>(src.front().get()); a) {
       hitPoundArg(dest, ctx, a->items);
+      getEndPos(ctx.pos, a->items);
       if (a->items.size()) {
         goto A;
       }
@@ -441,7 +443,7 @@ namespace zlt::mylispc {
     }
     A:
     src.pop_front();
-    preproc(dest, ctx, src);
+    preprocThen(dest, ctx, src);
   }
 
   void poundElse(ostream &dest, Context &ctx, UNodes &src) {
@@ -450,7 +452,7 @@ namespace zlt::mylispc {
       return;
     }
     if (auto a = dynamic_cast<ListAtom *>(src.front().get()); a) {
-      skipPoundArgs(dest, ctx, a->items);
+      getEndPos(ctx.pos, a->items);
       goto A;
     }
     if (auto a = dynamic_cast<TokenAtom *>(src.front().get()); a && a->token == "#if"_token) {
@@ -472,18 +474,27 @@ namespace zlt::mylispc {
     if (!id) {
       reportBad(ctx.err, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
       if (auto a = dynamic_cast<ListAtom *>(src.front().get()); a) {
-        skipPoundArgs(dest, ctx, a->items);
+        getEndPos(ctx.pos, a->items);
       }
       goto A;
     }
     if (ctx.macros.find(id->name) != ctx.macros.end()) {
       src.pop_front();
-      preproc(dest, ctx, src);
+      preprocThen(dest, ctx, src);
       return;
     }
     A:
     src.pop_front();
     poundElse(dest, ctx, src);
+  }
+
+  void poundThen(ostream &dest, Context &ctx, UNodes &src) {
+    for (; src.size(); src.pop_front()) {
+      if (auto a = dynamic_cast<TokenAtom *>(src.front().get()); a && a->token == "#if"_token) {
+        break;
+      }
+      preproc(dest, ctx, src.front());
+    }
   }
 
   static bool includeFile(string &dest, Context &ctx, const UNode &src);
