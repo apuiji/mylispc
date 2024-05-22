@@ -86,7 +86,26 @@ namespace zlt::mylispc {
 
   using It = UNodes::const_iterator;
 
+  static void getEndPos(Pos &dest, const UNode &src) noexcept;
+
+  static inline void getEndPos(Pos &dest, It it, It end) noexcept {
+    for (; it != end; ++it) {
+      getEndPos(dest, *it);
+    }
+  }
+
   static void macroExpand(ostream &dest, Context &ctx, const Macro &macro, It it, It end);
+
+  static void outPos(ostream &dest, const Pos &pos) {
+    outString1(dest, *pos.file);
+    dest << ' ' << pos.li;
+  }
+
+  static void outPos1(ostream &dest, const Pos &pos) {
+    dest << "($pos ";
+    outPos(dest, pos);
+    dest.put(')');
+  }
 
   using Pound = void (ostream &dest, Context &ctx, UNodes &src);
 
@@ -110,27 +129,38 @@ namespace zlt::mylispc {
         goto A;
       }
       src.pop_front();
-      macroExpand(dest, ctx, itMacro->second, src.begin(), src.end());
+      auto &m = itMacro->second;
+      Pos endPos = ctx.pos;
+      getEndPos(endPos, src.begin(), src.end());
+      dest << "($pushpos)";
+      outPos1(dest, m.pos);
+      pushPos(ctx.posk, m.pos);
+      macroExpand(dest, ctx, m, src.begin(), src.end());
+      popPos(ctx.posk);
+      dest << "($poppos)";
+      outPos1(dest, endPos);
+      ctx.pos = endPos;
       return;
     }
     if (auto p = isPound(src.front()); p) {
       src.pop_front();
+      Pos endPos = ctx.pos;
+      getEndPos(endPos, src.begin(), src.end());
       p(dest, ctx, src);
+      outPos1(dest, endPos);
+      ctx.pos = endPos;
       return;
     }
     A:
     preprocList1(dest, ctx, src);
   }
 
-  static void outPos(ostream &dest, const Pos &pos) {
-    outString1(dest, *pos.file);
-    dest << ' ' << pos.li;
-  }
-
-  static void outPos1(ostream &dest, const Pos &pos) {
-    dest << "($pos ";
-    outPos(dest, pos);
-    dest.put(')');
+  void getEndPos(Pos &dest, const UNode &src) noexcept {
+    if (Dynamicastable<EOLAtom> {}(*src)) {
+      ++dest.li;
+    } else if (auto a = dynamic_cast<const ListAtom *>(src.get()); a) {
+      getEndPos(dest, a->items.begin(), a->items.end());
+    }
   }
 
   using MacroExpMap = map<const string *, pair<Pos, It>>;
@@ -145,29 +175,20 @@ namespace zlt::mylispc {
   }
 
   void macroExpand(ostream &dest, Context &ctx, const Macro &macro, It it, It end) {
-    Pos startPos = ctx.pos;
     MacroExpMap map;
     macroExpand1(map, ctx, macro.params.begin(), macro.params.end(), it, end);
-    Pos endPos = ctx.pos;
     ctx.pos = macro.pos;
     stringstream ss;
     macroExpand2(ss, ctx, map, end, macro.body.begin(), macro.body.end());
     remove(map);
     auto s = ss.str();
     remove(ss);
-    dest << "($pushpos)";
-    outPos1(dest, macro.pos);
-    pushPos(ctx.posk, startPos);
     UNodes a;
     ParseContext pc(ctx.err, ctx.symbols, macro.pos, ctx.posk);
     parse(a, pc, s.data(), s.data() + s.size());
     remove(s);
     ctx.pos = macro.pos;
     preproc(dest, ctx, a);
-    dest << "($poppos)";
-    outPos1(dest, endPos);
-    popPos(ctx.posk);
-    ctx.pos = endPos;
   }
 
   static void macroExpand1a(MacroExpMap &dest, Context &ctx, Macro::ItParam itParam, Macro::ItParam endParam, It end);
@@ -283,7 +304,6 @@ namespace zlt::mylispc {
   }
 
   static void hitPoundArg(ostream &dest, Context &ctx, UNodes &src);
-  static void skipPoundArgs(ostream &dest, Context &ctx, It it, It end);
 
   void pound(ostream &dest, Context &ctx, UNodes &src) {
     hitPoundArg(dest, ctx, src);
@@ -303,31 +323,12 @@ namespace zlt::mylispc {
       reportBad(ctx.err, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
     }
     dest.put('\'');
-    src.pop_front();
-    skipPoundArgs(dest, ctx, src.begin(), src.end());
   }
 
   void hitPoundArg(ostream &dest, Context &ctx, UNodes &src) {
-    if (src.empty()) [[unlikely]] {
-      return;
-    }
-    if (Dynamicastable<EOLAtom> {}(*src.front())) {
+    for (; src.size() && Dynamicastable<EOLAtom> {}(*src.front()); src.pop_front()) {
       dest << endl;
     }
-    src.pop_front();
-    hitPoundArg(dest, ctx, src);
-  }
-
-  void skipPoundArgs(ostream &dest, Context &ctx, It it, It end) {
-    if (it == end) [[unlikely]] {
-      return;
-    }
-    if (Dynamicastable<EOLAtom> {}(**it)) {
-      dest << endl;
-    } else if (auto a = dynamic_cast<ListAtom *>(it->get()); a) {
-      skipPoundArgs(dest, ctx, a->items.begin(), a->items.end());
-    }
-    skipPoundArgs(dest, ctx, ++it, end);
   }
 
   void pound2(ostream &dest, Context &ctx, UNodes &src) {
@@ -344,8 +345,8 @@ namespace zlt::mylispc {
       dest << token::raw(b->token);
     } else {
       reportBad(ctx.err, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
+      getEndPos(ctx.pos, a);
     }
-    A:
     src.pop_front();
     pound2(dest, ctx, src);
   }
@@ -361,18 +362,15 @@ namespace zlt::mylispc {
     auto id = dynamic_cast<IDAtom *>(a.get());
     if (!id) {
       reportBad(ctx.err, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
-      goto A;
+      return;
     }
     auto name = id->name;
     if (ctx.macros.find(name) != ctx.macros.end()) {
       reportBad(ctx.err, bad::MACRO_ALREADY_DEFINED, ctx.pos, ctx.posk);
-      goto A;
+      return;
     }
     src.pop_front();
     poundDef1(ctx.macros[name], ctx, src);
-    return;
-    A:
-    skipPoundArgs(dest, ctx, src.begin(), src.end());
   }
 
   static void makeMacroParams(Macro::Params &dest, Context &ctx, UNodes &src);
@@ -382,39 +380,35 @@ namespace zlt::mylispc {
     if (src.empty()) [[unlikely]] {
       return;
     }
-    auto &a = src.front();
-    auto ls = dynamic_cast<ListAtom *>(a.get());
+    auto ls = dynamic_cast<ListAtom *>(src.front().get());
     if (!ls) {
       reportBad(ctx, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
-      skipPoundArgs(dest, ctx, src.begin(), src.end());
       return;
     }
     makeMacroParams(dest, ctx, ls->items);
     src.pop_front();
     hitPoundArg(dest, ctx, src);
+    dest.params.shrink_to_fit();
     dest.pos = ctx.pos;
-    skipPoundArgs(dest, ctx, src.begin(), src.end());
     dest.body = std::move(src);
   }
 
   void makeMacroParams(Macro::Params &dest, Context &ctx, UNodes &src) {
-    if (it == end) [[unlikely]] {
+    hitPoundArg(dest, ctx, src);
+    if (src.empty()) [[unlikely]] {
       return;
     }
-    hitPoundArg(dest, ctx, src);
     if (auto a = dynamic_cast<const IDAtom *>(src.front().get()); a) {
       dest.push_back(a->name);
       if (string_view(*a->name).starts_with("...")) {
-        src.pop_front();
-        skipPoundArgs(dest, ctx, src);
         return;
       }
     } else if (auto a = dynamic_cast<const ListAtom *>(src.front().get()); a) {
       dest.push_back(nullptr);
+      Pos pos = ctx.pos;
       hitPoundArg(dest, ctx, a->items);
       if (a->items.size()) {
-        reportBad(ctx.err, bad::ILL_MACRO_PARAM, ctx.pos, ctx.posk);
-        skipPoundArgs(dest, ctx, a->items);
+        reportBad(ctx.err, bad::ILL_MACRO_PARAM, pos, ctx.posk);
       }
     } else {
       reportBad(ctx.err, bad::ILL_MACRO_PARAM, ctx.pos, ctx.posk);
