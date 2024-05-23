@@ -515,6 +515,32 @@ namespace zlt::mylispc {
     return false;
   }
 
-  static Pound poundMovedef;
+  void poundMovedef(ostream &dest, Context &ctx, UNodes &src) {
+    hitPoundArg(dest, ctx, src);
+    if (src.empty()) [[unlikely]] {
+      return;
+    }
+    const string *from;
+    if (auto a = dynamic_cast<IDAtom *>(src.front().get()); a) {
+      from = a->name;
+    } else {
+      reportBad(ctx.err, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
+      return;
+    }
+    src.pop_front();
+    hitPoundArg(dest, ctx, src);
+    if (src.empty()) [[unlikely]] {
+      return;
+    }
+    const string *to;
+    if (auto a = dynamic_cast<IDAtom *>(src.front().get()); a) {
+      to = a->name;
+    } else {
+      reportBad(ctx.err, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
+      return;
+    }
+    
+  }
+
   static Pound poundUndef;
 }
