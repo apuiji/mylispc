@@ -34,20 +34,12 @@ namespace zlt::mylispc {
       return;
     }
     dest.put(' ');
-    if (auto a = dynamic_cast<const NumberAtom *>(src); a) {
-      dest << *a->raw;
+    if (auto a = dynamic_cast<const RawAtom *>(src); a) {
+      dest << a->raw();
       return;
     }
     if (auto a = dynamic_cast<const StringAtom *>(src); a) {
       outString1(dest, *a->value);
-      return;
-    }
-    if (auto a = dynamic_cast<const IDAtom *>(src); a) {
-      dest << *a->name;
-      return;
-    }
-    if (auto a = dynamic_cast<const TokenAtom *>(src); a) {
-      dest << token::raw(a->token);
       return;
     }
     preprocList(dest, ctx, static_cast<ListAtom &>(*src).items);
@@ -237,10 +229,6 @@ namespace zlt::mylispc {
       return;
     }
     dest.put(' ');
-    if (auto a = dynamic_cast<const NumberAtom *>(src.get()); a) {
-      dest << *a->raw;
-      return;
-    }
     if (auto a = dynamic_cast<const StringAtom *>(src.get()); a) {
       outString1(dest, *a->value);
       return;
@@ -248,8 +236,7 @@ namespace zlt::mylispc {
     if (auto a = dynamic_cast<const IDAtom *>(src.get()); a) {
       auto itMap = map.find(a->name);
       if (itMap == map.end()) {
-        dest << *a->name;
-        return;
+        goto A;
       }
       if (itMap->second == endArg) {
         return;
@@ -265,14 +252,13 @@ namespace zlt::mylispc {
       outPos1(ctx.pos);
       return;
     }
-    if (auto a = dynamic_cast<const TokenAtom *>(src.get()); a) {
-      dest << token::raw(a->token);
-      return;
+    if (auto a = dynamic_cast<const ListAtom *>(src.get()); a) {
+      dest.put('(');
+      macroExpand2(dest, map, endArg, a->item.begin(), a->items.end());
+      dest.put(')');
     }
-    auto &items = static_cast<const ListAtom &>(*src).items;
-    dest.put('(');
-    macroExpand2(dest, map, endArg, item.begin(), items.end());
-    dest.put(')');
+    A:
+    dest << static_cast<const RawAtom &>(*src).raw();
   }
 
   void macroExpand3(ostream &dest, const UNode &src) {
@@ -281,20 +267,12 @@ namespace zlt::mylispc {
       return;
     }
     dest.put(' ');
-    if (auto a = dynamic_cast<const NumberAtom *>(src.get()); a) {
-      dest << *a->raw;
+    if (auto a = dynamic_cast<const RawAtom *>(src.get()); a) {
+      dest << a->raw();
       return;
     }
     if (auto a = dynamic_cast<const StringAtom *>(src.get()); a) {
       outString1(dest, *a->value);
-      return;
-    }
-    if (auto a = dynamic_cast<const IDAtom *>(src.get()); a) {
-      dest << *a->name;
-      return;
-    }
-    if (auto a = dynamic_cast<const TokenAtom *>(src.get()); a) {
-      dest << token::raw(a->token);
       return;
     }
     auto &items = static_cast<const ListAtom &>(*src).items;
@@ -311,14 +289,9 @@ namespace zlt::mylispc {
       dest << "''";
       return;
     }
-    auto &a = src.front();
     dest.put('\'');
-    if (auto b = dynamic_cast<NumberAtom *>(a.get()); b) {
-      dest << *b->raw;
-    } else if (auto b = dynamic_cast<IDAtom *>(a.get()); b) {
-      dest << *b->name;
-    } else if (auto b = dynamic_cast<TokenAtom *>(a.get()); b) {
-      dest << token::raw(b->token);
+    if (auto a = dynamic_cast<RawAtom *>(src.front().get()); a) {
+      dest << a->raw();
     } else {
       reportBad(ctx.err, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
     }
@@ -336,13 +309,8 @@ namespace zlt::mylispc {
     if (src.empty()) [[unlikely]] {
       return;
     }
-    auto &a = src.front();
-    if (auto b = dynamic_cast<NumberAtom *>(a.get()); b) {
-      dest << *b->raw;
-    } else if (auto b = dynamic_cast<IDAtom *>(a.get()); b) {
-      dest << *b->name;
-    } else if (auto b = dynamic_cast<TokenAtom *>(a.get()); b) {
-      dest << token::raw(b->token);
+    if (auto a = dynamic_cast<RawAtom *>(src.front().get()); a) {
+      dest << a->raw();
     } else {
       reportBad(ctx.err, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
       getEndPos(ctx.pos, a);
@@ -364,13 +332,12 @@ namespace zlt::mylispc {
       reportBad(ctx.err, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
       return;
     }
-    auto name = id->name;
-    if (ctx.macros.find(name) != ctx.macros.end()) {
+    if (ctx.macros.find(id->name) != ctx.macros.end()) {
       reportBad(ctx.err, bad::MACRO_ALREADY_DEFINED, ctx.pos, ctx.posk);
       return;
     }
     src.pop_front();
-    poundDef1(ctx.macros[name], ctx, src);
+    poundDef1(ctx.macros[id->name], ctx, src);
   }
 
   static void makeMacroParams(Macro::Params &dest, Context &ctx, UNodes &src);
@@ -497,24 +464,29 @@ namespace zlt::mylispc {
     }
   }
 
-  static bool includeFile(string &dest, Context &ctx, const UNode &src);
+  static bool includeFile(string_view &dest, Context &ctx, const UNode &src);
 
   void poundInclude(ostream &dest, Context &ctx, UNodes &src) {
     hitPoundArg(dest, ctx, src);
     if (src.empty()) [[unlikely]] {
       return;
     }
-    string file;
+    string_view file;
     if (!includeFile(file, ctx, src.front())) {
       reportBad(ctx.err, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
       return;
     }
-    filesystem::path path(*file);
+    filesystem::path path(file);
     if (path.is_relative()) {
       path = filesystem::path(*ctx.pos.file).parent_path() / path;
     }
+    string s;
     try {
       path = filesystem::canonical(path);
+      stringstream ss;
+      ifstream ifs(path);
+      copy(istreambuf_iterator(ifs), istreambuf_iterator<char>(), ostreambuf_iterator(ss));
+      s = ss.str();
     } catch (...) {
       reportBad(ctx.err, bad::CANNOT_INCLUDE, ctx.pos, ctx.posk);
       return;
@@ -523,9 +495,24 @@ namespace zlt::mylispc {
     ctx.pos = Pos(addSymbol(ctx.symbols, std::move(file)), 0);
     dest << "($pushpos)";
     outPos1(dest, ctx.pos);
-    stringstream ss;
+    ParseContext pc(ctx.err, ctx.symbols, ctx.pos, ctx.posk);
+    UNodes a;
+    parse(a, pc, s.data(), s.data() + s.size());
+    preproc(dest, ctx, a);
     dest << "($poppos)";
     popPos(ctx.posk);
+  }
+
+  bool includeFile(string_view &dest, Context &ctx, const UNode &src) {
+    if (auto a = dynamic_cast<const RawAtom *>(src.get()); a) {
+      dest = a->raw();
+      return true;
+    }
+    if (auto a = dynamic_cast<const StringAtom *>(src.get()); a) {
+      dest = *a->value;
+      return true;
+    }
+    return false;
   }
 
   static Pound poundMovedef;

@@ -1,14 +1,22 @@
 #pragma once
 
 #include"mylispc.hh"
+#include"token.hh"
 
 namespace zlt::mylispc {
   struct EOLAtom final: Node {};
 
-  struct NumberAtom final: Node {
-    const std::string *raw;
+  struct RawAtom: virtual Node {
+    virtual std::string_view raw() const noexcept = 0;
+  };
+
+  struct NumberAtom final: RawAtom {
+    const std::string *rawval;
     double value;
-    NumberAtom(const std::string *raw, double value) noexcept: raw(raw), value(value) {}
+    NumberAtom(const std::string *rawval, double value) noexcept: rawval(rawval), value(value) {}
+    std::string_view raw() const noexcept override {
+      return *rawval;
+    }
   };
 
   struct StringAtom final: Node {
@@ -16,14 +24,20 @@ namespace zlt::mylispc {
     StringAtom(const std::string *value) noexcept: value(value) {}
   };
 
-  struct IDAtom final: Node {
+  struct IDAtom final: RawAtom {
     const std::string *name;
     IDAtom(const std::string *name) noexcept: name(name) {}
+    std::string_view raw() const noexcept override {
+      return *name;
+    }
   };
 
-  struct TokenAtom final: Node {
+  struct TokenAtom final: RawAtom {
     int token;
     TokenAtom(int token) noexcept: token(token) {}
+    std::string_view raw() const noexcept override {
+      return mylispc::token::raw(token);
+    }
   };
 
   struct List final: Node {
