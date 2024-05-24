@@ -55,6 +55,7 @@ namespace zlt::mylispc {
       CANNOT_INCLUDE,
       INV_PREPROC_ARG,
       MACRO_ALREADY_DEFINED,
+      MACRO_UNDEFINED,
       FATAL = 0x300,
       ILL_FN_PARAM,
       ILL_MACRO_PARAM,

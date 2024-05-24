@@ -12,7 +12,7 @@ namespace zlt::mylispc {
   };
 
   struct Call final: Node, Calling {
-    Call(const char *start, Calling &&calling) noexcept: Node(start), Calling(std::move(calling)) {}
+    Call(Calling &&calling) noexcept: Calling(std::move(calling)) {}
   };
 
   struct Callee final: Node {
@@ -21,16 +21,16 @@ namespace zlt::mylispc {
 
   struct Defer final: Node {
     UNode value;
-    Defer(const char *start, UNode &&value) noexcept: Node(start), value(std::move(value)) {}
+    Defer(UNode &&value) noexcept: value(std::move(value)) {}
   };
 
   struct Forward final: Node, Calling {
-    Forward(const char *start, Calling &&calling) noexcept: Node(start), Calling(std::move(calling)) {}
+    Forward(Calling &&calling) noexcept: Calling(std::move(calling)) {}
   };
 
   struct Guard final: Node {
     UNode value;
-    Guard(const char *start, UNode &&value) noexcept: Node(start), value(std::move(value)) {}
+    Guard(UNode &&value) noexcept: value(std::move(value)) {}
   };
 
   struct Function final: Node {
@@ -40,21 +40,18 @@ namespace zlt::mylispc {
     Params params;
     UNodes body;
     using Node::Node;
-    Function(const char *start, Defs &&defs, Params &&params, UNodes &&body) noexcept:
-    Node(start), defs(std::move(defs)), params(std::move(params)), body(std::move(body)) {}
+    Function(Defs &&defs, Params &&params, UNodes &&body) noexcept:
+    defs(std::move(defs)), params(std::move(params)), body(std::move(body)) {}
   };
 
-  struct ID final: Node {
-    const std::string *name;
-    ID(const char *start, const std::string *name) noexcept: Node(start), name(name) {}
-  };
+  using ID = IDAtom;
 
   struct If final: Node {
     UNode cond;
     UNode then;
     UNode elze;
-    If(const char *start, UNode &&cond, UNode &&then, UNode &&elze) noexcept:
-    Node(start), cond(std::move(cond)), then(std::move(then)), elze(std::move(elze)) {}
+    If(UNode &&cond, UNode &&then, UNode &&elze) noexcept: cond(std::move(cond)), then(std::move(then)), elze(std::move(elze))
+    {}
   };
 
   struct Null final: Node {
@@ -63,47 +60,46 @@ namespace zlt::mylispc {
 
   struct Number final: Node {
     double value;
-    Number(const char *start, double value) noexcept: Node(start), value(value) {}
+    Number(double value) noexcept: value(value) {}
   };
 
   struct Return final: Node {
     UNode value;
-    Return(const char *start, UNode &&value) noexcept: Node(start), value(std::move(value)) {}
+    Return(UNode &&value) noexcept: value(std::move(value)) {}
   };
 
   struct SetID final: Node {
     const std::string *name;
     UNode value;
-    SetID(const char *start, const std::string *name, UNode &&value) noexcept: Node(start), name(name), value(std::move(value))
-    {}
+    SetID(const std::string *name, UNode &&value) noexcept: name(name), value(std::move(value)) {}
   };
 
   struct Throw final: Node {
     UNode value;
-    Throw(const char *start, UNode &&value) noexcept: Node(start), value(std::move(value)) {}
+    Throw(UNode &&value) noexcept: value(std::move(value)) {}
   };
 
   struct Try final: Node, Calling {
-    Try(const char *start, Calling &&calling) noexcept: Node(start), Calling(std::move(calling)) {}
+    Try(Calling &&calling) noexcept: Calling(std::move(calling)) {}
   };
 
   // operations begin
   template<int N>
   struct Operation: Node {
     std::array<UNode, N> items;
-    Operation(const char *start, std::array<UNode, N> &&items) noexcept: Node(start), items(std::move(items)) {}
+    Operation(std::array<UNode, N> &&items) noexcept: items(std::move(items)) {}
   };
 
   template<>
   struct Operation<1>: Node {
     UNode item;
-    Operation(const char *start, UNode &&item) noexcept: Node(start), item(std::move(item)) {}
+    Operation(UNode &&item) noexcept: item(std::move(item)) {}
   };
 
   template<>
   struct Operation<-1>: Node {
     UNodes items;
-    Operation(const char *start, UNodes &&items) noexcept: Node(start), items(std::move(items)) {}
+    Operation(UNodes &&items) noexcept: items(std::move(items)) {}
   };
 
   template<int N, int Op>
@@ -153,23 +149,23 @@ namespace zlt::mylispc {
   };
   // operations end
 
-  static inline UNode number(double value, const char *start = nullptr) {
-    return UNode(new Number(start, value));
+  static inline UNode number(double value) {
+    return UNode(new Number(value));
   }
 
-  static inline UNode nvll(const char *start = nullptr) {
-    return UNode(new Null(start));
+  static inline UNode nvll() {
+    return UNode(new Null());
   }
 
-  static inline UNode trve(const char *start = nullptr) {
-    return number(1, start);
+  static inline UNode trve() {
+    return number(1);
   }
 
-  static inline UNode fa1se(const char *start = nullptr) {
-    return nvll(start);
+  static inline UNode fa1se() {
+    return nvll();
   }
 
-  static inline UNode boo1(bool b, const char *start = nullptr) {
-    return b ? trve(start) : fa1se(start);
+  static inline UNode boo1(bool b) {
+    return b ? trve() : fa1se();
   }
 }

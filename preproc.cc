@@ -527,6 +527,11 @@ namespace zlt::mylispc {
       reportBad(ctx.err, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
       return;
     }
+    auto itMacro = ctx.macros.find(from);
+    if (itMacro == ctx.macros.end()) {
+      reportBad(ctx.err, bad::MACRO_UNDEFINED, ctx.pos, ctx.posk);
+      return;
+    }
     src.pop_front();
     hitPoundArg(dest, ctx, src);
     if (src.empty()) [[unlikely]] {
@@ -539,8 +544,27 @@ namespace zlt::mylispc {
       reportBad(ctx.err, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
       return;
     }
-    
+    if (ctx.macros.find(to) != ctx.macros.end()) {
+      reportBad(ctx.err, bad::MACRO_ALREADY_DEFINED, ctx.pos, ctx.posk);
+      return;
+    }
+    ctx.macros[to] = std::move(itMacro->second);
+    ctx.macros.erase(itMacro);
   }
 
-  static Pound poundUndef;
+  void poundUndef(ostream &dest, Context &ctx, UNodes &src) {
+    hitPoundArg(dest, ctx, src);
+    if (src.empty()) [[unlikely]] {
+      return;
+    }
+    auto id = dynamic_cast<IDAtom *>(src.front().get());
+    if (!id) {
+      reportBad(ctx.err, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
+      return;
+    }
+    auto itMacro = ctx.macros.find(id->name);
+    if (itMacro != ctx.macros.end()) {
+      ctx.macros.erase(itMacro);
+    }
+  }
 }
