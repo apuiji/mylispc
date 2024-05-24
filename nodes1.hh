@@ -168,4 +168,8 @@ namespace zlt::mylispc {
   static inline UNode boo1(bool b) {
     return b ? trve() : fa1se();
   }
+
+  static inline UNode callee() {
+    return UNode(new Callee);
+  }
 }

@@ -42,7 +42,7 @@ namespace zlt::mylispc {
       outString1(dest, *a->value);
       return;
     }
-    preprocList(dest, ctx, static_cast<ListAtom &>(*src).items);
+    preprocList(dest, ctx, static_cast<List &>(*src).items);
   }
 
   static inline bool spechar(unsigned int c) noexcept {
@@ -150,7 +150,7 @@ namespace zlt::mylispc {
   void getEndPos(Pos &dest, const UNode &src) noexcept {
     if (Dynamicastable<EOLAtom> {}(*src)) {
       ++dest.li;
-    } else if (auto a = dynamic_cast<const ListAtom *>(src.get()); a) {
+    } else if (auto a = dynamic_cast<const List *>(src.get()); a) {
       getEndPos(dest, a->items.begin(), a->items.end());
     }
   }
@@ -252,7 +252,7 @@ namespace zlt::mylispc {
       outPos1(ctx.pos);
       return;
     }
-    if (auto a = dynamic_cast<const ListAtom *>(src.get()); a) {
+    if (auto a = dynamic_cast<const List *>(src.get()); a) {
       dest.put('(');
       macroExpand2(dest, map, endArg, a->item.begin(), a->items.end());
       dest.put(')');
@@ -275,7 +275,7 @@ namespace zlt::mylispc {
       outString1(dest, *a->value);
       return;
     }
-    auto &items = static_cast<const ListAtom &>(*src).items;
+    auto &items = static_cast<const List &>(*src).items;
     dest.put('(');
     macroExpand3(dest, items.begin(), items.end());
     dest.put(')');
@@ -347,7 +347,7 @@ namespace zlt::mylispc {
     if (src.empty()) [[unlikely]] {
       return;
     }
-    auto ls = dynamic_cast<ListAtom *>(src.front().get());
+    auto ls = dynamic_cast<List *>(src.front().get());
     if (!ls) {
       reportBad(ctx, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
       return;
@@ -370,7 +370,7 @@ namespace zlt::mylispc {
       if (string_view(*a->name).starts_with("...")) {
         return;
       }
-    } else if (auto a = dynamic_cast<const ListAtom *>(src.front().get()); a) {
+    } else if (auto a = dynamic_cast<const List *>(src.front().get()); a) {
       dest.push_back(nullptr);
       Pos pos = ctx.pos;
       hitPoundArg(dest, ctx, a->items);
@@ -393,7 +393,7 @@ namespace zlt::mylispc {
     if (src.empty()) [[unlikely]] {
       return;
     }
-    if (auto a = dynamic_cast<ListAtom *>(src.front().get()); a) {
+    if (auto a = dynamic_cast<List *>(src.front().get()); a) {
       hitPoundArg(dest, ctx, a->items);
       getEndPos(ctx.pos, a->items);
       if (a->items.size()) {
@@ -418,7 +418,7 @@ namespace zlt::mylispc {
     if (src.empty()) [[unlikely]] {
       return;
     }
-    if (auto a = dynamic_cast<ListAtom *>(src.front().get()); a) {
+    if (auto a = dynamic_cast<List *>(src.front().get()); a) {
       getEndPos(ctx.pos, a->items);
       goto A;
     }
@@ -440,7 +440,7 @@ namespace zlt::mylispc {
     auto id = dynamic_cast<IDAtom *>(src.front().get());
     if (!id) {
       reportBad(ctx.err, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
-      if (auto a = dynamic_cast<ListAtom *>(src.front().get()); a) {
+      if (auto a = dynamic_cast<List *>(src.front().get()); a) {
         getEndPos(ctx.pos, a->items);
       }
       goto A;

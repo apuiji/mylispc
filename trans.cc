@@ -1,53 +1,39 @@
 #include<iterator>
-#include"myutils/xyz.hh"
 #include"nodes1.hh"
 #include"token.hh"
 
 using namespace std;
 
 namespace zlt::mylispc {
-  using Defs = set<const string *>;
+  using Context = TransContext;
   using It = UNodes::iterator;
 
-  static void trans(Defs &defs, UNode &src);
+  static void transList(UNodes &dest, Context &ctx, UNodes &src);
 
-  static inline void trans(Defs &defs, It it, It end) {
-    for (; it != end; ++it) {
-      trans(defs, *it);
+  void trans(UNodes &dest, Context &ctx, UNode &src) {
+    if (Dynamicastable<EOLAtom> {}(*src)) {
+      ++ctx.pos.li;
+      return;
     }
-  }
-
-  void trans(UNodes &src) {
-    Defs _;
-    trans(_, src.begin(), src.end());
-    src.push_back({});
-    src.back().reset(new Return(nullptr, nvll()));
-  }
-
-  static void transList(UNode &dest, Defs &defs, const char *start, It it, It end);
-
-  void trans(Defs &defs, UNode &src) {
     if (auto a = dynamic_cast<const NumberAtom *>(src.get()); a) {
-      src.reset(new Number(a->start, a->value));
+      dest.push_back(number(a->value));
       return;
     }
-    if (auto a = dynamic_cast<const IDAtom *>(src.get()); a) {
-      src.reset(new ID(a->start, a->name));
-      return;
-    }
-    if (Dynamicastable<StringAtom> {}(*src)) {
+    if (Dynamicastable<IDAtom, StringAtom>(*src)) {
+      dest.push_back(std::move(src));
       return;
     }
     if (auto a = dynamic_cast<List *>(src.get()); a) {
-      transList(src, defs, a->start, a->items.begin(), a->items.end());
+      transList(dest, ctx, a->items);
       return;
     }
     auto &a = static_cast<TokenAtom &>(*src);
     if (a.token == "callee"_token) {
-      src.reset(new Callee(a.start));
+      dest.push_back(callee());
       return;
     }
-    throw Bad(bad::UNEXPECTED_TOKEN, src->start);
+    reportBad(ctx.err, bad::UNEXPECTED_TOKEN, ctx.pos, ctx.posk);
+    dest.push_back(nvll());
   }
 
   // aa begin
