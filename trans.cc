@@ -37,67 +37,68 @@ namespace zlt::mylispc {
   }
 
   // aa begin
-  static inline UNodes transItems(Defs &defs, It it, It end) {
-    trans(defs, it, end);
-    return UNodes(move_iterator(it), move_iterator(end));
+  static inline UNodes transItems(Context &ctx, UNodes &src) {
+    UNodes s;
+    trans(s, ctx, src);
+    return std::move(s);
   }
 
-  static UNode transItem(Defs &defs, It it, It end) {
-    auto a = transItems(defs, it, end);
+  static UNode transItem(Context &ctx, UNodes &src) {
+    auto a = transItems(ctx, src);
     if (a.empty()) [[unlikely]] {
       return nvll();
     }
     if (a.size() == 1) {
       return std::move(a.front());
     }
-    auto start = a.front()->start;
-    return UNode(new SequenceOper(start, std::move(a)));
+    return UNode(new SequenceOper(std::move(a)));
   }
 
-  static void transItemN(UNode *dest, size_t n, Defs &defs, It it, It end) {
-    for (; n > 1 && it != end; ++dest, --n, ++it) {
-      trans(defs, *it);
-      *dest = std::move(*it);
+  static void transItemN(UNode *dest, size_t n, Context &ctx, UNodes &src) {
+    auto a = transItems(ctx, src);
+    for (; n > 1 && a.size(); ++dest, --n, src.pop_front()) {
+      *dest = std::move(src.front());
     }
     for (; n > 1; ++dest, --n) {
       *dest = nvll();
     }
-    *dest = transItem(defs, it, end);
+    *dest = transItem(ctx, src);
   }
 
-  static Calling transCalling(Defs &defs, It it, It end) {
-    if (it == end) [[unlikely]] {
+  static Calling transCalling(Context &ctx, UNodes &src) {
+    auto a = transItems(ctx, src);
+    if (a.empty()) [[unlikely]] {
       return Calling(nvll(), {});
     }
-    trans(defs, *it);
-    auto callee = std::move(*it);
-    return Calling(std::move(callee), transItems(defs, ++it, end));
+    auto callee = std::move(src.front());
+    src.pop_front();
+    return Calling(std::move(callee), std::move(a));
   }
 
   template<class T>
-  static inline void transUnaryOper(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto a = transItem(defs, it, end);
-    dest.reset(new T(start, std::move(a)));
+  static inline void transUnaryOper(UNode &dest, Context &ctx, UNodes &src) {
+    auto a = transItem(ctx, src);
+    dest.reset(new T(std::move(a)));
   }
 
   template<class T, size_t N>
-  static inline void transXnaryOper(UNode &dest, Defs &defs, const char *start, It it, It end) {
+  static inline void transXnaryOper(UNode &dest, Context &ctx, UNodes &src) {
     array<UNode, N> a;
-    transItemN(a.data(), N, defs, it, end);
-    dest.reset(new T(start, std::move(a)));
+    transItemN(a.data(), N, ctx, src);
+    dest.reset(new T(std::move(a)));
   }
 
   template<class T>
-  static inline UNodes &transMultiOper(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto a = transItems(defs, it, end);
-    auto b = new T(start, std::move(a));
+  static inline UNodes &transMultiOper(UNode &dest, Context &ctx, UNodes &src) {
+    auto a = transItems(ctx, src);
+    auto b = new T(std::move(a));
     dest.reset(b);
     return b->items;
   }
   // aa end
 
   template<int>
-  void trans(UNode &dest, Defs &defs, const char *start, It it, It end);
+  void trans(UNode &dest, Context &ctx, UNodes &src);
 
   #define declTrans(T) \
   template<> \
