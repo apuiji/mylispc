@@ -37,6 +37,17 @@ namespace zlt::mylispc {
 
   void pushPos(PosStack &posk, const Pos &pos);
   Pos popPos(PosStack &posk);
+
+  struct PosStackMark {
+    PosStack &posk;
+    Pos *top;
+    size_t left;
+    PosStackMark(PosStack &posk) noexcept: posk(posk), top(posk.top), left(posk.left) {}
+    ~PosStackMark() noexcept {
+      posk.top = top;
+      posk.left = left;
+    }
+  };
   // positions end
 
   // bads begin

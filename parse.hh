@@ -10,8 +10,8 @@ namespace zlt::mylispc {
     std::ostream &err;
     Symbols &symbols;
     Pos pos;
-    PosStack &posk;
-    ParseContext(std::ostream &err, Symbols &symbols, const Pos &pos, PosStack &posk) noexcept:
+    const PosStack &posk;
+    ParseContext(std::ostream &err, Symbols &symbols, const Pos &pos, const PosStack &posk) noexcept:
     err(err), symbols(symbols), pos(pos), posk(posk) {}
   };
 

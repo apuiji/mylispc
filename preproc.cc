@@ -13,18 +13,6 @@ using namespace std;
 namespace zlt::mylispc {
   using Context = PreprocContext;
 
-  static void outString(ostream &dest, const unsigned char *it, const unsigned char *end);
-
-  static inline void outString(ostream &dest, string_view s) {
-    outString(dest, (unsigned char *) s.data(), (unsigned char *) s.data() + s.size());
-  }
-
-  static inline void outString1(ostream &dest, string_view s) {
-    dest.put('\'');
-    outString(dest, s);
-    dest.put('\'');
-  }
-
   static void preprocList(ostream &dest, Context &ctx, UNodes &src);
 
   void preproc(ostream &dest, Context &ctx, UNode &src) {
@@ -45,31 +33,6 @@ namespace zlt::mylispc {
     preprocList(dest, ctx, static_cast<List &>(*src).items);
   }
 
-  static inline bool spechar(unsigned int c) noexcept {
-    return c < 32 || c == '\'' || c == '\\' || c >= 128;
-  }
-
-  void outString(ostream &dest, const unsigned char *it, const unsigned char *end) {
-    if (auto it1 = find_if(it, end, spechar); it1 != it) {
-      dest.write(it, it1 - it);
-      outString(dest, it1, end);
-      return;
-    }
-    dest.put('\\');
-    if (*it == '\n') {
-      dest.put('n');
-    } else if (*it == '\r') {
-      dest.put('r');
-    } else if (*it == '\t') {
-      dest.put('t');
-    } else if (*it == '\'' || *it == '\\') {
-      dest.put(*it);
-    } else {
-      dest << 'x' << hex << setw(2) << setfill('0') << *it;
-    }
-    outString(dest, it + 1, end);
-  }
-
   static inline void preprocList1(ostream &dest, Context &ctx, UNodes &src) {
     dest.put('(');
     preproc(dest, ctx, src);
@@ -84,19 +47,6 @@ namespace zlt::mylispc {
     for (; it != end; ++it) {
       getEndPos(dest, *it);
     }
-  }
-
-  static void macroExpand(ostream &dest, Context &ctx, const Macro &macro, It it, It end);
-
-  static void outPos(ostream &dest, const Pos &pos) {
-    outString1(dest, *pos.file);
-    dest << ' ' << pos.li;
-  }
-
-  static void outPos1(ostream &dest, const Pos &pos) {
-    dest << "($pos ";
-    outPos(dest, pos);
-    dest.put(')');
   }
 
   using Pound = void (ostream &dest, Context &ctx, UNodes &src);
@@ -124,15 +74,25 @@ namespace zlt::mylispc {
       auto &m = itMacro->second;
       Pos endPos = ctx.pos;
       getEndPos(endPos, src.begin(), src.end());
-      dest << "($pushpos)";
-      outPos1(dest, m.pos);
-      pushPos(ctx.posk, m.pos);
-      macroExpand(dest, ctx, m, src.begin(), src.end());
+      stringstream ss;
+      ExpandContext ec(m.pos);
+      expand(ss, ec, m, src);
+      remove(ec);
+      auto s = ss.str();
+      remove(ss);
+      UNodes a;
+      ParseContext pc(ctx.err, ctx.symbols, m.pos, ctx.posk);
+      parse(a, pc, s.data(), s.data() + s.size());
+      remove(s);
+      //
       popPos(ctx.posk);
       dest << "($poppos)";
       outPos1(dest, endPos);
       ctx.pos = endPos;
       return;
+      //
+      ctx.pos = macro.pos;
+      preproc(dest, ctx, a);
     }
     if (auto p = isPound(src.front()); p) {
       src.pop_front();
