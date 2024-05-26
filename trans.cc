@@ -69,27 +69,6 @@ namespace zlt::mylispc {
     a.pop_front();
     return Calling(std::move(callee), std::move(a));
   }
-
-  template<class T>
-  static inline void transUnaryOper(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
-    auto a = transItem(ctx, defs, it, end);
-    dest.reset(new T(pos, std::move(a)));
-  }
-
-  template<class T, size_t N>
-  static inline void transXnaryOper(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
-    array<UNode, N> a;
-    transItemN(a.data(), N, ctx, defs, it, end);
-    dest.reset(new T(pos, std::move(a)));
-  }
-
-  template<class T>
-  static inline UNodes &transMultiOper(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
-    auto a = transItems(ctx, defs, it, end);
-    auto b = new T(pos, std::move(a));
-    dest.reset(b);
-    return b->items;
-  }
   // aa end
 
   using Trans = void (UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end);
@@ -262,7 +241,7 @@ namespace zlt::mylispc {
     return nullptr;
   }
 
-  void transDef(UNode &dest, Defs &defs, const Pos *pos, It it, It end) {
+  void transDef(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
     if (it == end) [[unlikely]] {
       dest = nvll(pos);
       return;
@@ -277,226 +256,253 @@ namespace zlt::mylispc {
     dest.reset(new ID(pos, id->name));
   }
 
-  void transDefer(UNode &dest, Defs &defs, const Pos *pos, It it, It end) {
-    transUnaryOper<Defer>(dest, defs, pos, it, end);
+  void transDefer(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    auto a = transItem(ctx, defs, it, end);
+    dest.reset(new Defer(pos, std::move(a)));
   }
 
-  template<>
-  void trans<"forward"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto calling = transCalling(defs, it, end);
-    dest.reset(new Forward(start, std::move(calling)));
+  void transForward(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    auto calling = transCalling(ctx, defs, it, end);
+    dest.reset(new Forward(pos, std::move(calling)));
   }
 
-  template<>
-  void trans<"guard"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    transUnaryOper<Guard>(dest, defs, start, it, end);
+  void transGuard(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    auto a = transItem(ctx, defs, it, end);
+    dest.reset(new Guard(pos, std::move(a)));
   }
 
-  static void transIf(UNode &dest, Defs &defs, const char *start, It it, It elze, It end);
+  static void transIf(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It elze, It end);
 
-  template<>
-  void trans<"if"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
+  void transIf(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
     It elze = find_if(it, end, isTokenAtom<"if"_token>);
-    transIf(dest, defs, start, it, elze, end);
+    transIf(dest, ctx, defs, pos, it, elze, end);
   }
 
-  static void transElse(UNode &dest, Defs &defs, It it, It end);
+  static void transElse(UNode &dest, Context &ctx, Defs &defs, It it, It end);
 
-  void transIf(UNode &dest, Defs &defs, const char *start, It it, It elze, It end) {
+  void transIf(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It elze, It end) {
     UNode cond;
     UNode then;
     if (it == elze) [[unlikely]] {
       cond = nvll();
       then = nvll();
     } else {
-      trans(defs, *it);
+      trans(ctx, defs, *it);
       cond = std::move(*it);
-      then = transItem(defs, ++it, end);
+      then = transItem(ctx, defs, ++it, elze);
     }
     UNode elze1;
-    transElse(elze1, defs, elze, end);
-    dest.reset(new If(start, std::move(cond), std::move(then), std::move(elze1)));
+    transElse(elze1, ctx, defs, elze, end);
+    dest.reset(new If(pos, std::move(cond), std::move(then), std::move(elze1)));
   }
 
-  void transElse(UNode &dest, Defs &defs, It it, It end) {
+  void transElse(UNode &dest, Context &ctx, Defs &defs, It it, It end) {
     if (it == end) [[unlikely]] {
       dest = nvll();
-    }
-    auto start = (**it).start;
-    trans<"if"_token>(dest, defs, start, ++it, end);
-  }
-
-  template<>
-  void trans<"length"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    transUnaryOper<LengthOper>(dest, defs, start, it, end);
-  }
-
-  template<>
-  void trans<"return"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    transUnaryOper<Return>(dest, defs, start, it, end);
-  }
-
-  template<>
-  void trans<"throw"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    transUnaryOper<Throw>(dest, defs, start, it, end);
-  }
-
-  template<>
-  void trans<"try"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    dest.reset(new Try(start, transCalling(defs, it, end)));
-  }
-
-  template<>
-  void trans<"!"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    transUnaryOper<LogicNotOper>(dest, defs, start, it, end);
-  }
-
-  template<>
-  void trans<"%"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<ArithModOper>(dest, defs, start, it, end);
-    if (a.empty()) {
-      dest = number(0, start);
-    } else if (a.size() == 1) {
-      a.push_back(number(1));
-    }
-  }
-
-  template<>
-  void trans<"&&"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<LogicAndOper>(dest, defs, start, it, end);
-    if (a.empty()) {
-      dest = nvll(start);
-    } else if (a.size() == 1) {
-      dest = std::move(a.front());
-    }
-  }
-
-  template<>
-  void trans<"&"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<BitwsAndOper>(dest, defs, start, it, end);
-    if (a.empty()) {
-      dest = number(0, start);
-    } else if (a.size() == 1) {
-      a.push_back(number(-1));
-    }
-  }
-
-  template<>
-  void trans<"**"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<ArithPowOper>(dest, defs, start, it, end);
-    if (a.empty()) {
-      dest = number(0, start);
-    } else if (a.size() == 1) {
-      a.push_back(number(1));
-    }
-  }
-
-  template<>
-  void trans<"*"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<ArithMulOper>(dest, defs, start, it, end);
-    if (a.empty()) {
-      dest = number(0, start);
-    } else if (a.size() == 1) {
-      a.push_back(number(1));
-    }
-  }
-
-  template<>
-  void trans<"+"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<ArithAddOper>(dest, defs, start, it, end);
-    if (a.empty()) {
-      dest = number(0, start);
-    } else if (a.size() == 1) {
-      dest.reset(new PositiveOper(start, std::move(a.front())));
-    }
-  }
-
-  template<>
-  void trans<","_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    dest = transItem(defs, it, end);
-  }
-
-  template<>
-  void trans<"-"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<ArithSubOper>(dest, defs, start, it, end);
-    if (a.empty()) {
-      dest = number(0, start);
-    } else if (a.size() == 1) {
-      dest.reset(new NegativeOper(start, std::move(a.front())));
-    }
-  }
-
-  template<>
-  void trans<"."_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<GetMembOper>(dest, defs, start, it, end);
-    if (a.empty()) {
-      dest = nvll(start);
-    } else if (a.size() == 1) {
-      dest = std::move(a.front());
-    }
-  }
-
-  template<>
-  void trans<"/"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<ArithDivOper>(dest, defs, start, it, end);
-    if (a.empty()) {
-      dest = nvll(start);
-    } else if (a.size() == 1) {
-      a.push_back(number(1));
-    }
-  }
-
-  template<>
-  void trans<"<<"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<LshOper>(dest, defs, start, it, end);
-    if (a.empty()) {
-      dest = number(0, start);
-    } else if (a.size() == 1) {
-      a.push_back(number(0));
-    }
-  }
-
-  template<>
-  void trans<"<=>"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    transXnaryOper<CompareOper, 2>(dest, defs, start, it, end);
-  }
-
-  template<>
-  void trans<"<="_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    transXnaryOper<CmpLteqOper, 2>(dest, defs, start, it, end);
-  }
-
-  template<>
-  void trans<"<"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    transXnaryOper<CmpLtOper, 2>(dest, defs, start, it, end);
-  }
-
-  template<>
-  void trans<"=="_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    transXnaryOper<CmpEqOper, 2>(dest, defs, start, it, end);
-  }
-
-  static void setMembOper(UNode &dest, Defs &defs, const char *start, UNode &lhs, UNode &value);
-
-  template<>
-  void trans<"="_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    if (it == end) [[unlikely]] {
-      dest = nvll(start);
       return;
     }
-    trans(defs, *it);
+    auto pos = (**it).pos;
+    transIf(dest, ctx, defs, pos, ++it, end);
+  }
+
+  void transLength(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    auto a = transItem(ctx, defs, it, end);
+    dest.reset(new LengthOper(pos, std::move(a)));
+  }
+
+  void transReturn(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    auto a = transItem(ctx, defs, it, end);
+    dest.reset(new Return(pos, std::move(a)));
+  }
+
+  void transThrow(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    auto a = transItem(ctx, defs, it, end);
+    dest.reset(new Throw(pos, std::move(a)));
+  }
+
+  void transTry(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    auto c = transCalling(ctx, defs, it, end);
+    dest.reset(new Try(pos, std::move(c)));
+  }
+
+  void transExclam(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    auto a = transItem(ctx, defs, it, end);
+    dest.reset(new LogicNotOper(pos, std::move(a)));
+  }
+
+  void transPercent(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    auto a = transItems(ctx, defs, it, end);
+    if (a.empty()) [[unlikely]] {
+      dest = number(0, pos);
+      return;
+    }
+    if (a.size() == 1) {
+      a.push_back(number(1));
+    }
+    dest.reset(new ArithModOper(pos, std::move(a)));
+  }
+
+  void transAmp2(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    auto a = transItems(ctx, defs, it, end);
+    if (a.empty()) [[unlikely]] {
+      dest = nvll(pos);
+      return;
+    }
+    if (a.size() == 1) [[unlikely]] {
+      dest = std::move(a.back());
+      return;
+    }
+    dest.reset(new LogicAndOper(pos, std::move(a)));
+  }
+
+  void transAmp(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    auto a = transItems(ctx, defs, it, end);
+    if (a.empty()) [[unlikely]] {
+      dest = number(0, pos);
+      return;
+    }
+    if (a.size() == 1) {
+      a.push_back(number(-1));
+    }
+    dest.reset(new BitwsAndOper(pos, std::move(a)));
+  }
+
+  void transAsterisk2(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    auto a = transItems(ctx, defs, it, end);
+    if (a.empty()) [[unlikely]] {
+      dest = number(0, pos);
+      return;
+    }
+    if (a.size() == 1) {
+      a.push_back(number(1));
+    }
+    dest.reset(new ArithPowOper(pos, std::move(a)));
+  }
+
+  void transAsterisk(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    auto a = transItems(ctx, defs, it, end);
+    if (a.empty()) [[unlikely]] {
+      dest = number(0, pos);
+      return;
+    }
+    if (a.size() == 1) {
+      a.push_back(number(1));
+    }
+    dest.reset(new ArithMulOper(pos, std::move(a)));
+  }
+
+  void transPlus(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    auto a = transItems(ctx, defs, it, end);
+    if (a.empty()) [[unlikely]] {
+      dest = number(0, pos);
+      return;
+    }
+    if (a.size() == 1) {
+      dest.reset(new PositiveOper(pos, std::move(a.back())));
+    } else {
+      dest.reset(new ArithAddOper(pos, std::move(a)));
+    }
+  }
+
+  void transComma(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    dest = transItem(ctx, defs, it, end);
+  }
+
+  void transMinus(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    auto a = transItems(ctx, defs, it, end);
+    if (a.empty()) [[unlikely]] {
+      dest = number(0, pos);
+      return;
+    }
+    if (a.size() == 1) {
+      dest.reset(new NegativeOper(pos, std::move(a.back())));
+    } else {
+      dest.reset(new ArithSubOper(pos, std::move(a)));
+    }
+  }
+
+  void transDot(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    auto a = transItems(ctx, defs, it, end);
+    if (a.empty()) [[unlikely]] {
+      dest = nvll(pos);
+      return;
+    }
+    if (a.size() == 1) [[unlikely]] {
+      dest = std::move(a.back());
+      return;
+    }
+    dest.reset(new GetMembOper(pos, std::move(a)));
+  }
+
+  void transSlash(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    auto a = transItems(ctx, defs, it, end);
+    if (a.empty()) [[unlikely]] {
+      dest = nvll(pos);
+      return;
+    }
+    if (a.size() == 1) {
+      a.push_back(number(1));
+    }
+    dest.reset(new ArithDivOper(pos, std::move(a)));
+  }
+
+  void transLt2(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    auto a = transItems(ctx, defs, it, end);
+    if (a.empty()) [[unlikely]] {
+      dest = number(0, pos);
+      return;
+    }
+    if (a.size() == 1) {
+      a.push_back(number(0));
+    }
+    dest.reset(new LshOper(pos, std::move(a)));
+  }
+
+  void transLtEqGt(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    array<UNode, 2> a;
+    transItemN(a.data(), 2, ctx, defs, it, end);
+    dest.reset(new CompareOper(pos, std::move(a)));
+  }
+
+  void transLtEq(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    array<UNode, 2> a;
+    transItemN(a.data(), 2, ctx, defs, it, end);
+    dest.reset(new CmpLteqOper(pos, std::move(a)));
+  }
+
+  void transLt(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    array<UNode, 2> a;
+    transItemN(a.data(), 2, ctx, defs, it, end);
+    dest.reset(new CmpLtOper(pos, std::move(a)));
+  }
+
+  void transEq2(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    array<UNode, 2> a;
+    transItemN(a.data(), 2, ctx, defs, it, end);
+    dest.reset(new CmpEqOper(pos, std::move(a)));
+  }
+
+  static void setMembOper(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, UNode &lhs, UNode &value);
+
+  void transEq(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    if (it == end) [[unlikely]] {
+      bad::report(ctx.err, );
+      dest = nvll(pos);
+      return;
+    }
+    trans(ctx, defs, *it);
     auto a = std::move(*it);
     if (++it == end) [[unlikely]] {
       dest = std::move(a);
       return;
     }
-    auto b = transItem(defs, it, end);
+    auto b = transItem(ctx, defs, it, end);
     if (auto c = dynamic_cast<ID *>(a.get()); c) {
-      dest.reset(new SetID(start, c->name, std::move(b)));
+      dest.reset(new SetID(pos, c->name, std::move(b)));
       return;
     }
     if (Dynamicastable<GetMembOper> {}(*a)) {
-      setMembOper(dest, defs, start, a, b);
+      setMembOper(dest, ctx, defs, pos, a, b);
       return;
     }
     UNodes c;
