@@ -12,433 +12,265 @@ using namespace std;
 
 namespace zlt::mylispc {
   using Context = PreprocContext;
-
-  static void preprocList(ostream &dest, Context &ctx, UNodes &src);
-
-  void preproc(ostream &dest, Context &ctx, UNode &src) {
-    if (Dynamicastable<EOLAtom> {}(*src)) {
-      dest << endl;
-      ++ctx.pos.li;
-      return;
-    }
-    dest.put(' ');
-    if (auto a = dynamic_cast<const RawAtom *>(src); a) {
-      dest << a->raw();
-      return;
-    }
-    if (auto a = dynamic_cast<const StringAtom *>(src); a) {
-      outString1(dest, *a->value);
-      return;
-    }
-    preprocList(dest, ctx, static_cast<List &>(*src).items);
-  }
-
-  static inline void preprocList1(ostream &dest, Context &ctx, UNodes &src) {
-    dest.put('(');
-    preproc(dest, ctx, src);
-    dest.put(')');
-  }
-
   using It = UNodes::const_iterator;
 
-  static void getEndPos(Pos &dest, const UNode &src) noexcept;
+  static void preprocList(UNodes &dest, Context &ctx, const Pos *pos, It it, It end);
 
-  static inline void getEndPos(Pos &dest, It it, It end) noexcept {
-    for (; it != end; ++it) {
-      getEndPos(dest, *it);
+  void preproc(UNodes &dest, Context &ctx, const UNode &src) {
+    if (auto a = dynamic_cast<const List *>(src.get()); a) {
+      preprocList(dest, ctx, a->pos, a->items.begin(), a->items.end());
+      return;
     }
+    dest.push_back({});
+    clone(dest.back(), src);
   }
 
-  using Pound = void (ostream &dest, Context &ctx, UNodes &src);
+  static const Macro *isMacro(const Context &ctx, const UNode &src) noexcept;
+
+  using Pound = void (UNodes &dest, Context &ctx, const Pos *pos, It it, It end);
 
   static Pound *isPound(const UNode &src) noexcept;
 
-  void preprocList(ostream &dest, Context &ctx, UNodes &src) {
-    if (src.empty()) [[unlikely]] {
-      dest << "()";
-      return;
+  void preprocList(UNodes &dest, Context &ctx, const Pos *pos, It it, It end) {
+    if (it == end) [[unlikely]] {
+      goto A;
     }
-    if (Dynamicastable<EOLAtom> {}(*src.front())) {
-      dest << endl;
-      ++ctx.pos.li;
-      src.pop_front();
-      preprocList(dest, ctx, src);
-      return;
-    }
-    if (auto a = dynamic_cast<IDAtom *>(src.front().get()); a) {
-      auto itMacro = ctx.macros.find(a->name);
-      if (itMacro == ctx.macros.end()) {
-        goto A;
-      }
-      src.pop_front();
-      auto &m = itMacro->second;
-      Pos endPos = ctx.pos;
-      getEndPos(endPos, src.begin(), src.end());
-      stringstream ss;
-      ExpandContext ec(m.pos);
-      expand(ss, ec, m, src);
-      remove(ec);
-      auto s = ss.str();
-      remove(ss);
+    if (auto m = isMacro(ctx, *it); m) {
       UNodes a;
-      ParseContext pc(ctx.err, ctx.symbols, m.pos, ctx.posk);
-      parse(a, pc, s.data(), s.data() + s.size());
-      remove(s);
-      //
-      popPos(ctx.posk);
-      dest << "($poppos)";
-      outPos1(dest, endPos);
-      ctx.pos = endPos;
+      ExpandContext ec;
+      expand(a, ec, *m, ++it, end);
+      preproc(dest, ctx, a.begin(), a.end());
       return;
-      //
-      ctx.pos = macro.pos;
-      preproc(dest, ctx, a);
     }
-    if (auto p = isPound(src.front()); p) {
-      src.pop_front();
-      Pos endPos = ctx.pos;
-      getEndPos(endPos, src.begin(), src.end());
-      p(dest, ctx, src);
-      outPos1(dest, endPos);
-      ctx.pos = endPos;
+    if (auto p = isPound(*it); p) {
+      p(dest, ctx, src.pos, ++it, end);
       return;
     }
     A:
-    preprocList1(dest, ctx, src);
+    dest.push_back({});
+    clone(dest.back(), src);
   }
 
-  void getEndPos(Pos &dest, const UNode &src) noexcept {
-    if (Dynamicastable<EOLAtom> {}(*src)) {
-      ++dest.li;
-    } else if (auto a = dynamic_cast<const List *>(src.get()); a) {
-      getEndPos(dest, a->items.begin(), a->items.end());
+  const Macro *isMacro(const Context &ctx, const UNode &src) noexcept {
+    auto id = dynamic_cast<const IDAtom *>(src.get());
+    if (!id) {
+      return nullptr;
     }
-  }
-
-  using MacroExpMap = map<const string *, pair<Pos, It>>;
-
-  static void macroExpand1(MacroExpMap &dest, Context &ctx, Macro::ItParam itParam, Macro::ItParam endParam, It it, It end);
-  static void macroExpand2(ostream &dest, Context &ctx, MacroExpMap &map, It endArg, const UNode &src);
-
-  static inline void macroExpand2(ostream &dest, Context &ctx, MacroExpMap &map, It endArg, It it, It end) {
-    for (; it != end; ++it) {
-      macroExpand2(dest, ctx, map, endArg, *it);
+    auto it = ctx.macros.find(id->name);
+    if (it == ctx.macros.end()) {
+      return nullptr;
     }
+    return &it->second;
   }
 
-  void macroExpand(ostream &dest, Context &ctx, const Macro &macro, It it, It end) {
-    MacroExpMap map;
-    macroExpand1(map, ctx, macro.params.begin(), macro.params.end(), it, end);
-    ctx.pos = macro.pos;
+  static Pound pound;
+  static Pound pound2;
+  static Pound poundDef;
+  static Pound poundIf;
+  static Pound poundInclude;
+  static Pound poundMovedef;
+  static Pound poundUndef;
+
+  Pound *isPound(const UNode &src) noexcept {
+    auto t = dynamic_cast<const TokenAtom *>(src.get());
+    if (!t) {
+      return nullptr;
+    }
+    if (t->token == "#"_token) {
+      return pound;
+    }
+    if (t->token == "##"_token) {
+      return pound2;
+    }
+    if (t->token == "#def"_token) {
+      return poundDef;
+    }
+    if (t->token == "#if"_token) {
+      return poundIf;
+    }
+    if (t->token == "#include"_token) {
+      return poundInclude;
+    }
+    if (t->token == "#movedef"_token) {
+      return poundMovedef;
+    }
+    if (t->token == "#undef"_token) {
+      return poundUndef;
+    }
+    return nullptr;
+  }
+
+  static bool tostr(string_view &dest, It it, It end) noexcept;
+
+  void pound(UNodes &dest, Context &ctx, const Pos *pos, It it, It end) {
+    string_view s;
+    if (!tostr(s, it, end)) [[unlikely]] {
+      bad::report(ctx.err, bad::INV_PREPROC_ARG, (**it).pos);
+    }
+    auto value = addSymbol(ctx.symbols, s);
+    dest.push_back({});
+    dest.back().reset(new StringAtom(pos, value));
+  }
+
+  bool tostr(string_view &dest, It it, It end) noexcept {
+    if (it == end) [[unlikely]] {
+      dest = "";
+      return true;
+    }
+    if (auto a = dynamic_cast<const RawAtom *>(it->get()); a) {
+      dest = a->raw();
+      return true;
+    }
+    return false;
+  }
+
+  static void idcat(ostream &dest, Context &ctx, It it, It end);
+
+  void pound2(UNodes &dest, Context &ctx, const Pos *pos, It it, It end) {
     stringstream ss;
-    macroExpand2(ss, ctx, map, end, macro.body.begin(), macro.body.end());
-    remove(map);
+    idcat(ss, ctx, it, end);
     auto s = ss.str();
     remove(ss);
-    UNodes a;
-    ParseContext pc(ctx.err, ctx.symbols, macro.pos, ctx.posk);
-    parse(a, pc, s.data(), s.data() + s.size());
-    remove(s);
-    ctx.pos = macro.pos;
-    preproc(dest, ctx, a);
-  }
-
-  static void macroExpand1a(MacroExpMap &dest, Context &ctx, Macro::ItParam itParam, Macro::ItParam endParam, It end);
-
-  void macroExpand1(MacroExpMap &dest, Context &ctx, Macro::ItParam itParam, Macro::ItParam endParam, It it, It end) {
-    if (itParam == endParam) [[unlikely]] {
+    if (s.empty()) {
       return;
     }
+    double d;
+    int i = token::isNumber(d, s);
+    if (i) {
+      if (i < 0) {
+        bad::report(ctx.err, bad::NUMBER_LITERAL_OOR, pos);
+      }
+      auto raw = addSymbol(ctx.symbols, s);
+      dest.push_back({});
+      dest.back().reset(new NumberAtom(pos, raw, d));
+      return;
+    }
+    int t = token::fromRaw(s);
+    if (t == token::ID) {
+      auto name = addSymbol(ctx.symbols, s);
+      dest.push_back({});
+      dest.back().reset(new IDAtom(pos, name));
+      return;
+    }
+    dest.push_back({});
+    dest.back().reset(new TokenAtom(pos, t));
+  }
+
+  static void poundDef1(Macro &dest, Context &ctx, It it, It end);
+
+  void poundDef(UNodes &dest, Context &ctx, const Pos *pos, It it, It end) {
     if (it == end) [[unlikely]] {
-      macroExpand1a(dest, ctx, itParam, endParam, end);
       return;
     }
-    if (Dynamicastable<EOLAtom> {}(*it)) {
-      ++ctx.pos.li;
-      macroExpand1(dest, ctx, itParam, endParam, ++it, end);
-      return;
-    }
-    if (*itParam) {
-      dest[*itParam] = make_pair(ctx.pos, it);
-    }
-    macroExpand1(dest, ctx, ++itParam, endParam, ++it, end);
-  }
-
-  void macroExpand1a(MacroExpMap &dest, Context &ctx, Macro::ItParam itParam, Macro::ItParam endParam, It end) {
-    if (itParam == endParam) [[unlikely]] {
-      return;
-    }
-    if (*itParam) {
-      dest[*itParam] = make_pair(ctx.pos, end);
-    }
-    macroExpand1a(dest, ctx, ++itParam, endParam, end);
-  }
-
-  static void macroExpand3(ostream &dest, const UNode &src);
-
-  static inline void macroExpand3(ostream &dest, It it, It end) {
-    for (; it != end; ++it) {
-      macroExpand3(dest, *it);
-    }
-  }
-
-  void macroExpand2(ostream &dest, MacroExpMap &map, It endArg, const UNode &src) {
-    if (Dynamicastable<EOLAtom> {}(**it)) {
-      dest << endl;
-      ++ctx.pos.li;
-      return;
-    }
-    dest.put(' ');
-    if (auto a = dynamic_cast<const StringAtom *>(src.get()); a) {
-      outString1(dest, *a->value);
-      return;
-    }
-    if (auto a = dynamic_cast<const IDAtom *>(src.get()); a) {
-      auto itMap = map.find(a->name);
-      if (itMap == map.end()) {
-        goto A;
-      }
-      if (itMap->second == endArg) {
-        return;
-      }
-      dest << "($pushpos)";
-      outPos1(itMap->first);
-      if (string_view(*a->name).starts_with("...")) {
-        macroExpand3(dest, itMap->second, endArg);
-      } else {
-        macroExpand3(dest, *itMap->second);
-      }
-      dest << "($poppos)";
-      outPos1(ctx.pos);
-      return;
-    }
-    if (auto a = dynamic_cast<const List *>(src.get()); a) {
-      dest.put('(');
-      macroExpand2(dest, map, endArg, a->item.begin(), a->items.end());
-      dest.put(')');
-    }
-    A:
-    dest << static_cast<const RawAtom &>(*src).raw();
-  }
-
-  void macroExpand3(ostream &dest, const UNode &src) {
-    if (Dynamicastable<EOLAtom> {}(*src)) {
-      dest << endl;
-      return;
-    }
-    dest.put(' ');
-    if (auto a = dynamic_cast<const RawAtom *>(src.get()); a) {
-      dest << a->raw();
-      return;
-    }
-    if (auto a = dynamic_cast<const StringAtom *>(src.get()); a) {
-      outString1(dest, *a->value);
-      return;
-    }
-    auto &items = static_cast<const List &>(*src).items;
-    dest.put('(');
-    macroExpand3(dest, items.begin(), items.end());
-    dest.put(')');
-  }
-
-  static void hitPoundArg(ostream &dest, Context &ctx, UNodes &src);
-
-  void pound(ostream &dest, Context &ctx, UNodes &src) {
-    hitPoundArg(dest, ctx, src);
-    if (src.empty()) [[unlikely]] {
-      dest << "''";
-      return;
-    }
-    dest.put('\'');
-    if (auto a = dynamic_cast<RawAtom *>(src.front().get()); a) {
-      dest << a->raw();
-    } else {
-      reportBad(ctx.err, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
-    }
-    dest.put('\'');
-  }
-
-  void hitPoundArg(ostream &dest, Context &ctx, UNodes &src) {
-    for (; src.size() && Dynamicastable<EOLAtom> {}(*src.front()); src.pop_front()) {
-      dest << endl;
-    }
-  }
-
-  void pound2(ostream &dest, Context &ctx, UNodes &src) {
-    hitPoundArg(dest, ctx, src);
-    if (src.empty()) [[unlikely]] {
-      return;
-    }
-    if (auto a = dynamic_cast<RawAtom *>(src.front().get()); a) {
-      dest << a->raw();
-    } else {
-      reportBad(ctx.err, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
-      getEndPos(ctx.pos, a);
-    }
-    src.pop_front();
-    pound2(dest, ctx, src);
-  }
-
-  static void poundDef1(Macro &dest, Context &ctx, UNodes &src);
-
-  void poundDef(ostream &dest, Context &ctx, UNodes &src) {
-    hitPoundArg(dest, ctx, src);
-    if (src.empty()) [[unlikely]] {
-      return;
-    }
-    auto &a = src.front();
-    auto id = dynamic_cast<IDAtom *>(a.get());
+    auto id = dynamic_cast<const IDAtom *>(it->get());
     if (!id) {
-      reportBad(ctx.err, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
+      bad::report(ctx.err, bad::INV_PREPROC_ARG, (**it).pos);
       return;
     }
     if (ctx.macros.find(id->name) != ctx.macros.end()) {
-      reportBad(ctx.err, bad::MACRO_ALREADY_DEFINED, ctx.pos, ctx.posk);
+      bad::report(ctx.err, bad::MACRO_ALREADY_DEFINED, pos);
       return;
     }
-    src.pop_front();
-    poundDef1(ctx.macros[id->name], ctx, src);
+    poundDef1(ctx.macros[id->name], ctx, ++it, end);
   }
 
-  static void makeMacroParams(Macro::Params &dest, Context &ctx, UNodes &src);
+  static void makeMacroParams(Macro::Params &dest, Context &ctx, It it, It end);
 
-  void poundDef1(Macro &dest, Context &ctx, UNodes &src) {
-    hitPoundArg(dest, ctx, src);
-    if (src.empty()) [[unlikely]] {
+  void poundDef1(Macro &dest, Context &ctx, It it, It end) {
+    if (it == end) [[unlikely]] {
       return;
     }
-    auto ls = dynamic_cast<List *>(src.front().get());
+    auto ls = dynamic_cast<const List *>(it->get());
     if (!ls) {
-      reportBad(ctx, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
+      bad::report(ctx.err, bad::INV_PREPROC_ARG, (**it).pos);
       return;
     }
-    makeMacroParams(dest, ctx, ls->items);
-    src.pop_front();
-    hitPoundArg(dest, ctx, src);
+    makeMacroParams(dest.params, ctx, ls->items.begin(), ls->items.end());
     dest.params.shrink_to_fit();
-    dest.pos = ctx.pos;
-    dest.body = std::move(src);
+    clone(dest.body, ++it, end);
   }
 
-  void makeMacroParams(Macro::Params &dest, Context &ctx, UNodes &src) {
-    hitPoundArg(dest, ctx, src);
-    if (src.empty()) [[unlikely]] {
+  void makeMacroParams(Macro::Params &dest, Context &ctx, It it, It end) {
+    if (it == end) [[unlikely]] {
       return;
     }
-    if (auto a = dynamic_cast<const IDAtom *>(src.front().get()); a) {
+    if (auto a = dynamic_cast<const IDAtom *>(it->get()); a) {
       dest.push_back(a->name);
       if (string_view(*a->name).starts_with("...")) {
         return;
       }
-    } else if (auto a = dynamic_cast<const List *>(src.front().get()); a) {
+    } else if (auto a = dynamic_cast<const List *>(it->get()); a && a->items.empty()) {
       dest.push_back(nullptr);
-      Pos pos = ctx.pos;
-      hitPoundArg(dest, ctx, a->items);
-      if (a->items.size()) {
-        reportBad(ctx.err, bad::ILL_MACRO_PARAM, pos, ctx.posk);
-      }
     } else {
-      reportBad(ctx.err, bad::ILL_MACRO_PARAM, ctx.pos, ctx.posk);
+      bad::report(ctx.err, bad::ILL_MACRO_PARAM, (**it).pos);
     }
-    src.pop_front();
-    makeMacroParams(dest, cts, src);
+    makeMacroParams(dest, ctx, ++it, end);
   }
 
-  static void poundElse(ostream &dest, Context &ctx, UNodes &src);
-  static void poundIfdef(ostream &dest, Context &ctx, UNodes &src);
-  static void poundThen(ostream &dest, Context &ctx, UNodes &src);
+  static void poundElse(UNodes &dest, Context &ctx, It it, It end);
+  static void poundIfdef(UNodes &dest, Context &ctx, const Pos *pos, It it, It end);
+  static void poundThen(UNodes &dest, Context &ctx, const Pos *pos, It it, It end);
 
-  void poundIf(ostream &dest, Context &ctx, UNodes &src) {
-    hitPoundArg(dest, ctx, src);
-    if (src.empty()) [[unlikely]] {
+  void poundIf(UNodes &dest, Context &ctx, const Pos *pos, It it, It end) {
+    if (it == end) [[unlikely]] {
       return;
     }
-    if (auto a = dynamic_cast<List *>(src.front().get()); a) {
-      hitPoundArg(dest, ctx, a->items);
-      getEndPos(ctx.pos, a->items);
-      if (a->items.size()) {
-        goto A;
+    if (isTokenAtom<"#def"_token>(*it)) {
+      poundIfdef(dest, ctx, pos, ++it, end);
+      return;
+    }
+    if (auto a = dynamic_cast<const List *>(it->get()); a && a->items.empty()) {
+      poundElse(dest, ctx, ++it, end);
+      return;
+    }
+    preprocThen(dest, ctx, pos, ++it, end);
+  }
+
+  void poundElse(UNodes &dest, Context &ctx, It it, It end) {
+    for (; it != end; ++it) {
+      if (isTokenAtom<"#if"_token>(*it)) {
+        poundIf(dest, ctx, (**it).pos, ++it, end);
+        return;
       }
-      src.pop_front();
-      poundElse(dest, ctx, src);
-      return;
     }
-    if (auto a = dynamic_cast<TokenAtom *>(src.front().get()); a && a->token == "#def"_token) {
-      src.pop_front();
-      poundIfdef(dest, ctx, src);
-      return;
-    }
-    A:
-    src.pop_front();
-    preprocThen(dest, ctx, src);
   }
 
-  void poundElse(ostream &dest, Context &ctx, UNodes &src) {
-    hitPoundArg(dest, ctx, src);
-    if (src.empty()) [[unlikely]] {
+  void poundIfdef(UNodes &dest, Context &ctx, const Pos *pos, It it, It end) {
+    if (it == end) [[unlikely]] {
       return;
     }
-    if (auto a = dynamic_cast<List *>(src.front().get()); a) {
-      getEndPos(ctx.pos, a->items);
-      goto A;
-    }
-    if (auto a = dynamic_cast<TokenAtom *>(src.front().get()); a && a->token == "#if"_token) {
-      src.pop_front();
-      poundIf(dest, ctx, src);
-      return;
-    }
-    A:
-    src.pop_front();
-    poundElse(dest, ctx, src);
-  }
-
-  void poundIfdef(ostream &dest, Context &ctx, UNodes &src) {
-    hitPoundArg(dest, ctx, src);
-    if (src.empty()) [[unlikely]] {
-      return;
-    }
-    auto id = dynamic_cast<IDAtom *>(src.front().get());
+    auto id = dynamic_cast<const IDAtom *>(it->get());
     if (!id) {
-      reportBad(ctx.err, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
-      if (auto a = dynamic_cast<List *>(src.front().get()); a) {
-        getEndPos(ctx.pos, a->items);
-      }
+      bad::report(ctx.err, bad::INV_PREPROC_ARG, (**it).pos);
       goto A;
     }
     if (ctx.macros.find(id->name) != ctx.macros.end()) {
-      src.pop_front();
-      preprocThen(dest, ctx, src);
+      preprocThen(dest, ctx, pos, ++it, end);
       return;
     }
     A:
-    src.pop_front();
-    poundElse(dest, ctx, src);
+    poundElse(dest, ctx, ++it, end);
   }
 
-  void poundThen(ostream &dest, Context &ctx, UNodes &src) {
-    for (; src.size(); src.pop_front()) {
-      if (auto a = dynamic_cast<TokenAtom *>(src.front().get()); a && a->token == "#if"_token) {
-        break;
-      }
-      preproc(dest, ctx, src.front());
-    }
+  void poundThen(UNodes &dest, Context &ctx, const Pos *pos, It it, It end) {
+    It it1 = find(it, end, isTokenAtom<"#if"_token>);
+    preproc(dest, ctx, it, it1);
   }
 
   static bool includeFile(string_view &dest, Context &ctx, const UNode &src);
 
-  void poundInclude(ostream &dest, Context &ctx, UNodes &src) {
-    hitPoundArg(dest, ctx, src);
-    if (src.empty()) [[unlikely]] {
+  void poundInclude(ostream &dest, Context &ctx, const Pos *pos, It it, It end) {
+    if (it == end) [[unlikely]] {
       return;
     }
     string_view file;
-    if (!includeFile(file, ctx, src.front())) {
-      reportBad(ctx.err, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
+    if (!includeFile(file, ctx, *it)) {
+      bad::report(ctx.err, bad::INV_PREPROC_ARG, (**it).pos);
       return;
     }
     filesystem::path path(file);
     if (path.is_relative()) {
-      path = filesystem::path(*ctx.pos.file).parent_path() / path;
+      path = filesystem::path(*pos->file).parent_path() / path;
     }
     string s;
     try {
@@ -448,19 +280,15 @@ namespace zlt::mylispc {
       copy(istreambuf_iterator(ifs), istreambuf_iterator<char>(), ostreambuf_iterator(ss));
       s = ss.str();
     } catch (...) {
-      reportBad(ctx.err, bad::CANNOT_INCLUDE, ctx.pos, ctx.posk);
+      bad::report(ctx.err, bad::CANNOT_INCLUDE, pos);
       return;
     }
-    pushPos(ctx.posk, ctx.pos);
-    ctx.pos = Pos(addSymbol(ctx.symbols, std::move(file)), 0);
-    dest << "($pushpos)";
-    outPos1(dest, ctx.pos);
-    ParseContext pc(ctx.err, ctx.symbols, ctx.pos, ctx.posk);
+    auto file1 = addSymbol(ctx.symbols, (string) path);
+    ParseContext pc(ctx.err, ctx.symbols, ctx.poss, Pos(file1, 0));
     UNodes a;
     parse(a, pc, s.data(), s.data() + s.size());
-    preproc(dest, ctx, a);
-    dest << "($poppos)";
-    popPos(ctx.posk);
+    remove(s);
+    preproc(dest, ctx, a.begin(), a.end());
   }
 
   bool includeFile(string_view &dest, Context &ctx, const UNode &src) {
@@ -475,51 +303,47 @@ namespace zlt::mylispc {
     return false;
   }
 
-  void poundMovedef(ostream &dest, Context &ctx, UNodes &src) {
-    hitPoundArg(dest, ctx, src);
-    if (src.empty()) [[unlikely]] {
+  void poundMovedef(ostream &dest, Context &ctx, const Pos *pos, It it, It end) {
+    if (it == end) [[unlikely]] {
       return;
     }
     const string *from;
-    if (auto a = dynamic_cast<IDAtom *>(src.front().get()); a) {
+    if (auto a = dynamic_cast<const IDAtom *>(it->get()); a) {
       from = a->name;
     } else {
-      reportBad(ctx.err, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
+      bad::report(ctx.err, bad::INV_PREPROC_ARG, (**it).pos);
       return;
     }
     auto itMacro = ctx.macros.find(from);
     if (itMacro == ctx.macros.end()) {
-      reportBad(ctx.err, bad::MACRO_UNDEFINED, ctx.pos, ctx.posk);
+      bad::report(ctx.err, bad::MACRO_UNDEFINED, pos);
       return;
     }
-    src.pop_front();
-    hitPoundArg(dest, ctx, src);
-    if (src.empty()) [[unlikely]] {
+    if (++it == end) [[unlikely]] {
       return;
     }
     const string *to;
-    if (auto a = dynamic_cast<IDAtom *>(src.front().get()); a) {
+    if (auto a = dynamic_cast<const IDAtom *>(it->get()); a) {
       to = a->name;
     } else {
-      reportBad(ctx.err, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
+      bad::report(ctx.err, bad::INV_PREPROC_ARG, (**it).pos);
       return;
     }
     if (ctx.macros.find(to) != ctx.macros.end()) {
-      reportBad(ctx.err, bad::MACRO_ALREADY_DEFINED, ctx.pos, ctx.posk);
+      bad::report(ctx.err, bad::MACRO_ALREADY_DEFINED, pos);
       return;
     }
     ctx.macros[to] = std::move(itMacro->second);
     ctx.macros.erase(itMacro);
   }
 
-  void poundUndef(ostream &dest, Context &ctx, UNodes &src) {
-    hitPoundArg(dest, ctx, src);
-    if (src.empty()) [[unlikely]] {
+  void poundUndef(ostream &dest, Context &ctx, const Pos *pos, It it, It end) {
+    if (it == end) [[unlikely]] {
       return;
     }
-    auto id = dynamic_cast<IDAtom *>(src.front().get());
+    auto id = dynamic_cast<const IDAtom *>(it->get());
     if (!id) {
-      reportBad(ctx.err, bad::INV_PREPROC_ARG, ctx.pos, ctx.posk);
+      bad::report(ctx.err, bad::INV_PREPROC_ARG, (**it).pos);
       return;
     }
     auto itMacro = ctx.macros.find(id->name);

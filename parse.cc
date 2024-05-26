@@ -15,8 +15,8 @@ namespace zlt::mylispc {
     It start1 = nodes(dest, ctx, it, end);
     auto [_1, end1] = lexer(ctx, start1, end);
     if (_1 != token::E0F) {
-      reportBad(ctx.err, bad::UNEXPECTED_TOKEN, ctx.pos, ctx.posk);
-      throw Bad();
+      bad::report(ctx.err, bad::UNEXPECTED_TOKEN, ctx.pos);
+      throw bad::Fatal();
     }
   }
 
@@ -41,23 +41,24 @@ namespace zlt::mylispc {
       return nullptr;
     }
     if (_0 == token::EOL) {
-      dest.reset(new EOLAtom);
       ++ctx.pos.li;
-      return end0;
+      return node(dest, ctx, end0, end);
     }
+    auto pos0 = addPos(ctx.poss, ctx.pos);
     string_view raw0(start0, end0 - start0);
     if (_0 == token::NUMBER) {
-      dest.reset(new NumberAtom(addSymbol(ctx.symbols, raw0), d));
+      auto raw = addSymbol(ctx.symbols, raw0);
+      dest.reset(new NumberAtom(pos0, raw, d));
       return end0;
     }
     if (_0 == token::STRING) {
       auto value = addSymbol(ctx.symbols, std::move(s));
-      dest.reset(new StringAtom(value));
+      dest.reset(new StringAtom(pos0, value));
       return end0;
     }
     if (_0 == token::ID) {
       auto name = addSymbol(ctx.symbols, raw0);
-      dest.reset(new IDAtom(name));
+      dest.reset(new IDAtom(pos0, name));
       return end0;
     }
     if (_0 == "("_token) {
@@ -65,13 +66,13 @@ namespace zlt::mylispc {
       It start2 = nodes(_1, ctx, end0, end);
       auto [_2, end2] = lexer(ctx, start2, end);
       if (_2 != ")"_token) {
-        reportBad(ctx.err, bad::UNEXPECTED_TOKEN, ctx.pos, ctx.posk);
-        throw Bad();
+        bad::report(ctx.err, bad::UNEXPECTED_TOKEN, ctx.pos);
+        throw bad::Fatal();
       }
-      dest.reset(new List(std::move(_1)));
+      dest.reset(new List(pos0, std::move(_1)));
       return end2;
     }
-    dest.reset(new TokenAtom(_0));
+    dest.reset(new TokenAtom(pos0, _0));
     return end0;
   }
 }

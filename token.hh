@@ -41,11 +41,6 @@ namespace zlt::mylispc::token {
         "#movedef",
         "#undef",
         // preproc operations end
-        // mark operations begin
-        "$poppos",
-        "$pos",
-        "$pushpos",
-        // mark operations end
         "!",
         "%",
         "&&",
@@ -78,6 +73,12 @@ namespace zlt::mylispc::token {
   };
 
   std::string_view raw(int token) noexcept;
+
+  /// @return 0-not a number, 1-is number, -1-out of range
+  int isNumber(double &dest, std::string_view src);
+
+  /// @return token
+  int fromRaw(std::string_view src) noexcept;
 }
 
 namespace zlt::mylispc {

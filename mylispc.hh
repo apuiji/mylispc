@@ -6,7 +6,11 @@
 #include"zlt/myset.hh"
 
 namespace zlt::mylispc {
+  struct Pos;
+
   struct Node {
+    const Pos *pos;
+    Node(const Pos *pos = nullptr) noexcept: pos(pos) {}
     virtual ~Node() = default;
   };
 
@@ -27,36 +31,21 @@ namespace zlt::mylispc {
   struct Pos {
     const std::string *file;
     int li;
+    Pos(const std::string *file, int li) noexcept: file(file), li(li) {}
   };
 
-  struct PosStack {
-    std::unique_ptr<Pos[]> data;
-    Pos *top;
-    size_t left;
-  };
-
-  void pushPos(PosStack &posk, const Pos &pos);
-  Pos popPos(PosStack &posk);
-
-  struct PosStackMark {
-    PosStack &posk;
-    Pos *top;
-    size_t left;
-    PosStackMark(PosStack &posk) noexcept: posk(posk), top(posk.top), left(posk.left) {}
-    ~PosStackMark() noexcept {
-      posk.top = top;
-      posk.left = left;
+  struct PosSetComp {
+    bool operator ()(const Pos &a, const Pos &b) const noexcept {
+      return a.file < b.file || a.li < b.li;
     }
   };
+
+  using PosSet = std::set<Pos, PosSetComp>;
+
+  const Pos *addPos(PosSet &poss, const Pos &pos);
   // positions end
 
   // bads begin
-  void reportBad(std::ostream &dest, int bad, const Pos &pos, const PosStack &posk);
-
-  struct Bad {
-    // empty
-  };
-
   namespace bad {
     enum {
       NO_BAD,
@@ -78,6 +67,12 @@ namespace zlt::mylispc {
     static inline int level(int bad) noexcept {
       return bad & 0xf00;
     }
+
+    void report(std::ostream &dest, int bad, const Pos &pos);
+
+    struct Fatal {
+      // empty
+    };
   }
   // bads end
 }

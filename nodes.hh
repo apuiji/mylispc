@@ -4,16 +4,15 @@
 #include"token.hh"
 
 namespace zlt::mylispc {
-  struct EOLAtom final: Node {};
-
   struct RawAtom: virtual Node {
+    using Node::Node;
     virtual std::string_view raw() const noexcept = 0;
   };
 
   struct NumberAtom final: RawAtom {
     const std::string *rawval;
     double value;
-    NumberAtom(const std::string *rawval, double value) noexcept: rawval(rawval), value(value) {}
+    NumberAtom(const Pos *pos, const std::string *rawval, double value) noexcept: RawAtom(pos), rawval(rawval), value(value) {}
     std::string_view raw() const noexcept override {
       return *rawval;
     }
@@ -21,12 +20,12 @@ namespace zlt::mylispc {
 
   struct StringAtom final: Node {
     const std::string *value;
-    StringAtom(const std::string *value) noexcept: value(value) {}
+    StringAtom(const Pos *pos, const std::string *value) noexcept: Node(pos), value(value) {}
   };
 
   struct IDAtom final: RawAtom {
     const std::string *name;
-    IDAtom(const std::string *name) noexcept: name(name) {}
+    IDAtom(const Pos *pos, const std::string *name) noexcept: RawAtom(pos), name(name) {}
     std::string_view raw() const noexcept override {
       return *name;
     }
@@ -34,7 +33,7 @@ namespace zlt::mylispc {
 
   struct TokenAtom final: RawAtom {
     int token;
-    TokenAtom(int token) noexcept: token(token) {}
+    TokenAtom(const Pos *pos, int token) noexcept: RawAtom(pos), token(token) {}
     std::string_view raw() const noexcept override {
       return mylispc::token::raw(token);
     }
@@ -42,7 +41,7 @@ namespace zlt::mylispc {
 
   struct List final: Node {
     UNodes items;
-    List(UNodes &&items = {}) noexcept: items(std::move(items)) {}
+    List(const Pos *pos, UNodes &&items = {}) noexcept: Node(pos), items(std::move(items)) {}
   };
 
   template<int T>
