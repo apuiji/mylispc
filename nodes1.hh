@@ -12,7 +12,7 @@ namespace zlt::mylispc {
   };
 
   struct Call final: Node, Calling {
-    Call(Calling &&calling) noexcept: Calling(std::move(calling)) {}
+    Call(const Pos *pos, Calling &&calling) noexcept: Node(pos), Calling(std::move(calling)) {}
   };
 
   struct Callee final: Node {
@@ -21,16 +21,16 @@ namespace zlt::mylispc {
 
   struct Defer final: Node {
     UNode value;
-    Defer(UNode &&value) noexcept: value(std::move(value)) {}
+    Defer(const Pos *pos, UNode &&value) noexcept: Node(pos), value(std::move(value)) {}
   };
 
   struct Forward final: Node, Calling {
-    Forward(Calling &&calling) noexcept: Calling(std::move(calling)) {}
+    Forward(const Pos *pos, Calling &&calling) noexcept: Node(pos), Calling(std::move(calling)) {}
   };
 
   struct Guard final: Node {
     UNode value;
-    Guard(UNode &&value) noexcept: value(std::move(value)) {}
+    Guard(const Pos *pos, UNode &&value) noexcept: Node(pos), value(std::move(value)) {}
   };
 
   struct Function final: Node {
@@ -40,8 +40,8 @@ namespace zlt::mylispc {
     Params params;
     UNodes body;
     using Node::Node;
-    Function(Defs &&defs, Params &&params, UNodes &&body) noexcept:
-    defs(std::move(defs)), params(std::move(params)), body(std::move(body)) {}
+    Function(const Pos *pos, Defs &&defs, Params &&params, UNodes &&body) noexcept:
+    Node(pos), defs(std::move(defs)), params(std::move(params)), body(std::move(body)) {}
   };
 
   using ID = IDAtom;
@@ -50,8 +50,8 @@ namespace zlt::mylispc {
     UNode cond;
     UNode then;
     UNode elze;
-    If(UNode &&cond, UNode &&then, UNode &&elze) noexcept: cond(std::move(cond)), then(std::move(then)), elze(std::move(elze))
-    {}
+    If(const Pos *pos, UNode &&cond, UNode &&then, UNode &&elze) noexcept:
+    Node(pos), cond(std::move(cond)), then(std::move(then)), elze(std::move(elze)) {}
   };
 
   struct Null final: Node {
@@ -60,46 +60,46 @@ namespace zlt::mylispc {
 
   struct Number final: Node {
     double value;
-    Number(double value) noexcept: value(value) {}
+    Number(const Pos *pos, double value) noexcept: Node(pos), value(value) {}
   };
 
   struct Return final: Node {
     UNode value;
-    Return(UNode &&value) noexcept: value(std::move(value)) {}
+    Return(const Pos *pos, UNode &&value) noexcept: Node(pos), value(std::move(value)) {}
   };
 
   struct SetID final: Node {
     const std::string *name;
     UNode value;
-    SetID(const std::string *name, UNode &&value) noexcept: name(name), value(std::move(value)) {}
+    SetID(const Pos *pos, const std::string *name, UNode &&value) noexcept: Node(pos), name(name), value(std::move(value)) {}
   };
 
   struct Throw final: Node {
     UNode value;
-    Throw(UNode &&value) noexcept: value(std::move(value)) {}
+    Throw(const Pos *pos, UNode &&value) noexcept: Node(pos), value(std::move(value)) {}
   };
 
   struct Try final: Node, Calling {
-    Try(Calling &&calling) noexcept: Calling(std::move(calling)) {}
+    Try(const Pos *pos, Calling &&calling) noexcept: Node(pos), Calling(std::move(calling)) {}
   };
 
   // operations begin
   template<int N>
   struct Operation: Node {
     std::array<UNode, N> items;
-    Operation(std::array<UNode, N> &&items) noexcept: items(std::move(items)) {}
+    Operation(const Pos *pos, std::array<UNode, N> &&items) noexcept: Node(pos), items(std::move(items)) {}
   };
 
   template<>
   struct Operation<1>: Node {
     UNode item;
-    Operation(UNode &&item) noexcept: item(std::move(item)) {}
+    Operation(const Pos *pos, UNode &&item) noexcept: Node(pos), item(std::move(item)) {}
   };
 
   template<>
   struct Operation<-1>: Node {
     UNodes items;
-    Operation(UNodes &&items) noexcept: items(std::move(items)) {}
+    Operation(const Pos *pos, UNodes &&items) noexcept: Node(pos), items(std::move(items)) {}
   };
 
   template<int N, int Op>
@@ -149,27 +149,27 @@ namespace zlt::mylispc {
   };
   // operations end
 
-  static inline UNode number(double value) {
-    return UNode(new Number(value));
+  static inline UNode number(double value, const Pos *pos = nullptr) {
+    return UNode(new Number(pos, value));
   }
 
-  static inline UNode nvll() {
-    return UNode(new Null());
+  static inline UNode nvll(const Pos *pos = nullptr) {
+    return UNode(new Null(pos));
   }
 
-  static inline UNode trve() {
-    return number(1);
+  static inline UNode trve(const Pos *pos = nullptr) {
+    return number(1, pos);
   }
 
-  static inline UNode fa1se() {
-    return nvll();
+  static inline UNode fa1se(const Pos *pos = nullptr) {
+    return nvll(pos);
   }
 
-  static inline UNode boo1(bool b) {
-    return b ? trve() : fa1se();
+  static inline UNode boo1(bool b, const Pos *pos = nullptr) {
+    return b ? trve(pos) : fa1se(pos);
   }
 
-  static inline UNode callee() {
-    return UNode(new Callee);
+  static inline UNode callee(const Pos *pos = nullptr) {
+    return UNode(new Callee(pos));
   }
 }

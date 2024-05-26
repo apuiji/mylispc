@@ -6,212 +6,279 @@ using namespace std;
 
 namespace zlt::mylispc {
   using Context = TransContext;
+  using Defs = set<const string *>;
   using It = UNodes::iterator;
 
-  static void transList(UNodes &dest, Context &ctx, UNodes &src);
+  static void transList(Context &ctx, Defs &defs, const Pos *pos, It it, It end);
 
-  void trans(UNodes &dest, Context &ctx, UNode &src) {
-    if (Dynamicastable<EOLAtom> {}(*src)) {
-      ++ctx.pos.li;
+  void trans(Context &ctx, Defs &defs, UNode &src) {
+    if (auto a = dynamic_cast<Number *>(src.get()); a) {
+      src = number(a->value, a->pos);
       return;
     }
-    if (auto a = dynamic_cast<const NumberAtom *>(src.get()); a) {
-      dest.push_back(number(a->value));
+    if (Dynamicastable<StringAtom, IDAtom> {}(*src)) {
       return;
     }
-    if (Dynamicastable<IDAtom, StringAtom>(*src)) {
-      dest.push_back(std::move(src));
+    if (auto a = dynamic_cast<List *>(src.get()); a && a->items.size()) {
+      transList(ctx, defs, a->pos, a->items.begin(), a->items.end());
       return;
     }
-    if (auto a = dynamic_cast<List *>(src.get()); a) {
-      transList(dest, ctx, a->items);
+    if (isTokenAtom<"callee"_token>(src)) {
+      src = callee(src->pos);
       return;
     }
-    auto &a = static_cast<TokenAtom &>(*src);
-    if (a.token == "callee"_token) {
-      dest.push_back(callee());
-      return;
-    }
-    reportBad(ctx.err, bad::UNEXPECTED_TOKEN, ctx.pos, ctx.posk);
-    dest.push_back(nvll());
+    bad::report(ctx.err, bad::UNEXPECTED_TOKEN, src->pos);
+    src = nvll(src->pos);
   }
 
   // aa begin
-  static inline UNodes transItems(Context &ctx, UNodes &src) {
-    UNodes s;
-    trans(s, ctx, src);
-    return std::move(s);
+  static inline UNodes transItems(Context &ctx, Defs &defs, It it, It end) {
+    trans(ctx, defs, it, end);
+    return UNodes(move_iterator(it), move_iterator(end));
   }
 
-  static UNode transItem(Context &ctx, UNodes &src) {
-    auto a = transItems(ctx, src);
-    if (a.empty()) [[unlikely]] {
+  static UNode transItem(Context &ctx, Defs &defs, It it, It end) {
+    auto a = transItems(ctx, defs, it, end);
+    if (a.empty()) {
       return nvll();
     }
     if (a.size() == 1) {
-      return std::move(a.front());
+      return std::move(a.back());
     }
-    return UNode(new SequenceOper(std::move(a)));
+    auto pos = a.front()->pos;
+    return UNode(new SequenceOper(pos, std::move(a)));
   }
 
-  static void transItemN(UNode *dest, size_t n, Context &ctx, UNodes &src) {
-    auto a = transItems(ctx, src);
-    for (; n > 1 && a.size(); ++dest, --n, src.pop_front()) {
-      *dest = std::move(src.front());
+  static void transItemN(UNode *dest, size_t n, Context &ctx, Defs &defs, It it, It end) {
+    for (; n > 1 && it != end; ++dest, --n, ++it) {
+      trans(ctx, defs, *it);
+      *dest = std::move(*it);
     }
     for (; n > 1; ++dest, --n) {
       *dest = nvll();
     }
-    *dest = transItem(ctx, src);
+    *dest = transItem(ctx, defs, it, end);
   }
 
-  static Calling transCalling(Context &ctx, UNodes &src) {
-    auto a = transItems(ctx, src);
+  static Calling transCalling(Context &ctx, Defs &defs, It it, It end) {
+    auto a = transItems(ctx, defs, it, end);
     if (a.empty()) [[unlikely]] {
       return Calling(nvll(), {});
     }
-    auto callee = std::move(src.front());
-    src.pop_front();
+    auto callee = std::move(a.front());
+    a.pop_front();
     return Calling(std::move(callee), std::move(a));
   }
 
   template<class T>
-  static inline void transUnaryOper(UNode &dest, Context &ctx, UNodes &src) {
-    auto a = transItem(ctx, src);
-    dest.reset(new T(std::move(a)));
+  static inline void transUnaryOper(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    auto a = transItem(ctx, defs, it, end);
+    dest.reset(new T(pos, std::move(a)));
   }
 
   template<class T, size_t N>
-  static inline void transXnaryOper(UNode &dest, Context &ctx, UNodes &src) {
+  static inline void transXnaryOper(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
     array<UNode, N> a;
-    transItemN(a.data(), N, ctx, src);
-    dest.reset(new T(std::move(a)));
+    transItemN(a.data(), N, ctx, defs, it, end);
+    dest.reset(new T(pos, std::move(a)));
   }
 
   template<class T>
-  static inline UNodes &transMultiOper(UNode &dest, Context &ctx, UNodes &src) {
-    auto a = transItems(ctx, src);
-    auto b = new T(std::move(a));
+  static inline UNodes &transMultiOper(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    auto a = transItems(ctx, defs, it, end);
+    auto b = new T(pos, std::move(a));
     dest.reset(b);
     return b->items;
   }
   // aa end
 
-  template<int>
-  void trans(UNode &dest, Context &ctx, UNodes &src);
+  using Trans = void (UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end);
 
-  #define declTrans(T) \
-  template<> \
-  void trans<T##_token>(UNode &dest, Defs &defs, const char *start, It it, It end)
+  static Trans *isTrans(const UNode &src) noexcept;
 
-  declTrans("def");
-  declTrans("defer");
-  declTrans("forward");
-  declTrans("guard");
-  declTrans("if");
-  declTrans("length");
-  declTrans("return");
-  declTrans("throw");
-  declTrans("try");
-  declTrans("!");
-  declTrans("%");
-  declTrans("&&");
-  declTrans("&");
-  declTrans("**");
-  declTrans("*");
-  declTrans("+");
-  declTrans(",");
-  declTrans("-");
-  declTrans(".");
-  declTrans("/");
-  declTrans("<<");
-  declTrans("<=>");
-  declTrans("<=");
-  declTrans("<");
-  declTrans("==");
-  declTrans("=");
-  declTrans(">=");
-  declTrans(">>>");
-  declTrans(">>");
-  declTrans(">");
-  declTrans("@");
-  declTrans("^^");
-  declTrans("^");
-  declTrans("||");
-  declTrans("|");
-  declTrans("~");
-
-  #undef declTrans
-
-  void transList(UNode &dest, Defs &defs, const char *start, It it, It end) {
+  void transList(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
     if (it == end) [[unlikely]] {
-      dest = nvll(start);
+      dest = nvll(pos);
       return;
     }
-    auto ta = dynamic_cast<const TokenAtom *>(it->get());
-    int t = ta ? ta->token : -1;
-    #define ifToken(T) \
-    if (t == T##_token) { \
-      trans<T##_token>(dest, defs, start, ++it, end); \
-      return; \
+    if (auto t = isTrans(*it); t) {
+      t(dest, ctx, defs, pos, it, end);
+      return;
     }
-    ifToken("def");
-    ifToken("defer");
-    ifToken("forward");
-    ifToken("guard");
-    ifToken("if");
-    ifToken("length");
-    ifToken("return");
-    ifToken("throw");
-    ifToken("try");
-    ifToken("!");
-    ifToken("%");
-    ifToken("&&");
-    ifToken("&");
-    ifToken("**");
-    ifToken("*");
-    ifToken("+");
-    ifToken(",");
-    ifToken("-");
-    ifToken(".");
-    ifToken("/");
-    ifToken("<<");
-    ifToken("<=>");
-    ifToken("<=");
-    ifToken("<");
-    ifToken("==");
-    ifToken("=");
-    ifToken(">=");
-    ifToken(">>>");
-    ifToken(">>");
-    ifToken(">");
-    ifToken("@");
-    ifToken("^^");
-    ifToken("^");
-    ifToken("||");
-    ifToken("|");
-    ifToken("~");
-    #undef ifToken
-    dest.reset(new Call(start, transCalling(defs, it, end)));
+    auto c = transCalling(ctx, defs, it, end);
+    dest.reset(new Call(pos, std::move(c)));
   }
 
-  template<>
-  void trans<"def"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
+  static Trans transDef;
+  static Trans transDefer;
+  static Trans transForward;
+  static Trans transGuard;
+  static Trans transIf;
+  static Trans transLength;
+  static Trans transReturn;
+  static Trans transThrow;
+  static Trans transTry;
+  static Trans transExclam;
+  static Trans transPercent;
+  static Trans transAmp2;
+  static Trans transAmp;
+  static Trans transAsterisk2;
+  static Trans transAsterisk;
+  static Trans transPlus;
+  static Trans transComma;
+  static Trans transMinus;
+  static Trans transDot;
+  static Trans transSlash;
+  static Trans transLt2;
+  static Trans transLtEqGt;
+  static Trans transLtEq;
+  static Trans transLt;
+  static Trans transEq2;
+  static Trans transEq;
+  static Trans transGtEq;
+  static Trans transGt3;
+  static Trans transGt2;
+  static Trans transGt;
+  static Trans transAt;
+  static Trans transCaret2;
+  static Trans transCaret;
+  static Trans transVertical2;
+  static Trans transVertical;
+  static Trans transTilde;
+
+  Trans *isTrans(const UNode &src) noexcept {
+    auto t = dynamic_cast<const TokenAtom *>(src.get());
+    if (!t) [[unlikely]] {
+      return nullptr;
+    }
+    if (t->token == "def"_token) {
+      return transDef;
+    }
+    if (t->token == "defer"_token) {
+      return transDefer;
+    }
+    if (t->token == "forward"_token) {
+      return transForward;
+    }
+    if (t->token == "guard"_token) {
+      return transGuard;
+    }
+    if (t->token == "if"_token) {
+      return transIf;
+    }
+    if (t->token == "length"_token) {
+      return transLength;
+    }
+    if (t->token == "return"_token) {
+      return transReturn;
+    }
+    if (t->token == "throw"_token) {
+      return transThrow;
+    }
+    if (t->token == "try"_token) {
+      return transTry;
+    }
+    if (t->token == "!"_token) {
+      return transExclam;
+    }
+    if (t->token == "%"_token) {
+      return transPercent;
+    }
+    if (t->token == "&&"_token) {
+      return transAmp2;
+    }
+    if (t->token == "&"_token) {
+      return transAmp;
+    }
+    if (t->token == "**"_token) {
+      return transAsterisk2;
+    }
+    if (t->token == "*"_token) {
+      return transAsterisk;
+    }
+    if (t->token == "+"_token) {
+      return transPlus;
+    }
+    if (t->token == ","_token) {
+      return transComma;
+    }
+    if (t->token == "-"_token) {
+      return transMinus;
+    }
+    if (t->token == "."_token) {
+      return transDot;
+    }
+    if (t->token == "/"_token) {
+      return transSlash;
+    }
+    if (t->token == "<<"_token) {
+      return transLt2;
+    }
+    if (t->token == "<=>"_token) {
+      return transLtEqGt;
+    }
+    if (t->token == "<="_token) {
+      return transLtEq;
+    }
+    if (t->token == "<"_token) {
+      return transLt;
+    }
+    if (t->token == "=="_token) {
+      return transEq2;
+    }
+    if (t->token == "="_token) {
+      return transEq;
+    }
+    if (t->token == ">="_token) {
+      return transGtEq;
+    }
+    if (t->token == ">>>"_token) {
+      return transGt3;
+    }
+    if (t->token == ">>"_token) {
+      return transGt2;
+    }
+    if (t->token == ">"_token) {
+      return transGt;
+    }
+    if (t->token == "@"_token) {
+      return transAt;
+    }
+    if (t->token == "^^"_token) {
+      return transCaret2;
+    }
+    if (t->token == "^"_token) {
+      return transCaret;
+    }
+    if (t->token == "||"_token) {
+      return transVertical2;
+    }
+    if (t->token == "|"_token) {
+      return transVertical;
+    }
+    if (t->token == "~"_token) {
+      return transTilde;
+    }
+    return nullptr;
+  }
+
+  void transDef(UNode &dest, Defs &defs, const Pos *pos, It it, It end) {
     if (it == end) [[unlikely]] {
-      dest = nvll(start);
+      dest = nvll(pos);
       return;
     }
     auto id = dynamic_cast<const IDAtom *>(it->get());
     if (!id) {
-      throw Bad(bad::UNEXPECTED_TOKEN, (**it).start);
+      bad::report(ctx.err, bad::UNEXPECTED_TOKEN, (**it).pos);
+      dest = nvll(pos);
+      return;
     }
     defs.insert(id->name);
-    dest.reset(new ID(start, id->name));
+    dest.reset(new ID(pos, id->name));
   }
 
-  template<>
-  void trans<"defer"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    transUnaryOper<Defer>(dest, defs, start, it, end);
+  void transDefer(UNode &dest, Defs &defs, const Pos *pos, It it, It end) {
+    transUnaryOper<Defer>(dest, defs, pos, it, end);
   }
 
   template<>
