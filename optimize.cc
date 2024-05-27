@@ -429,16 +429,27 @@ namespace zlt::mylispc {
     src.items = std::move(a);
   }
 
+  static void bitwsOr(UNodes &dest, int &dest1, UNodes &src) {
+    for (; src.size(); src.pop_front()) {
+      if (int i; isIntConst(i, src.front())) {
+        dest1 = dest1 | i;
+      } else {
+        dest.push_back(std::move(src.front()));
+      }
+    }
+  }
+
   void optimize(UNode &dest, BitwsOrOper &src) {
     optimize(src.items.begin(), src.items.end());
+    size_t n = src.items.size();
     UNodes a;
     int b = 0;
-    sum(a, b, src.items.begin(), src.items.end(), isIntConst, bit_or<int>());
-    if (a.empty()) {
-      dest = number(b, src.start);
+    bitwsOr(a, b, src.items);
+    if (a.empty()) [[unlikely]] {
+      dest = number(b, src.pos);
       return;
     }
-    if (a.size() != src.items.size()) {
+    if (a.size() != n) {
       a.push_front(number(b));
     }
     src.items = std::move(a);
@@ -447,36 +458,49 @@ namespace zlt::mylispc {
   void optimize(UNode &dest, BitwsNotOper &src) {
     optimize(src.item);
     if (int i; isIntConst(i, src.item)) {
-      dest = number(~i, src.start);
+      dest = number(~i, src.pos);
+    }
+  }
+
+  static void bitwsXor(UNodes &dest, int &dest1, UNodes &src) {
+    for (; src.size(); src.pop_front()) {
+      if (int i; isIntConst(i, src.front())) {
+        dest1 = dest1 ^ b;
+      } else {
+        dest.push_back(std::move(src.front()));
+      }
     }
   }
 
   void optimize(UNode &dest, BitwsXorOper &src) {
     optimize(src.items.begin(), src.items.end());
+    size_t n = src.items.size();
     UNodes a;
     int b = 0;
-    sum(a, b, src.items.begin(), src.items.end(), isIntConst, bit_xor<int>());
-    if (a.empty()) {
-      dest = number(b, src.start);
+    bitwsXor(a, b, src.items);
+    if (a.empty()) [[unlikely]] {
+      dest = number(b, src.pos);
       return;
     }
-    if (a.size() != src.items.size()) {
-      a.push_front(number(b));
+    if (a.size() != n) {
+      a.push_back(number(b));
     }
     src.items = std::move(a);
   }
 
   void optimize(UNode &dest, LshOper &src) {
     optimize(src.items.begin(), src.items.end());
-    UNodes a;
-    int b = 0;
-    sum(a, b, next(src.items.begin()), src.items.end(), isIntConst, plus<int>());
-    if (int c; isIntConst(c, src.items.front())) {
-      if (a.empty()) {
-        dest = number(c << b, src.start);
+    auto a = std::move(src.items.front());
+    src.items.pop_front();
+    UNodes b;
+    int c = 0;
+    sum(b, c, src.items);
+    if (int i; isIntConst(i, a)) {
+      if (b.empty()) {
+        dest = number(i << c, src.pos);
         return;
       }
-      a.push_front(number(c << b));
+      b.push_front(number(i << c));
     } else {
       a.push_front(std::move(src.items.front()));
       if (a.size() != src.items.size()) {
