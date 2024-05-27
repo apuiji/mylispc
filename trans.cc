@@ -27,7 +27,7 @@ namespace zlt::mylispc {
       src = callee(src->pos);
       return;
     }
-    bad::report(ctx.err, bad::UNEXPECTED_TOKEN, src->pos);
+    bad::report(ctx.err, bad::UNEXPECTED_TRANS_TOKEN, src->pos);
     src = nvll(src->pos);
   }
 
@@ -248,7 +248,7 @@ namespace zlt::mylispc {
     }
     auto id = dynamic_cast<const IDAtom *>(it->get());
     if (!id) {
-      bad::report(ctx.err, bad::UNEXPECTED_TOKEN, (**it).pos);
+      bad::report(ctx.err, bad::UNEXPECTED_TRANS_TOKEN, (**it).pos);
       dest = nvll(pos);
       return;
     }
@@ -486,13 +486,14 @@ namespace zlt::mylispc {
 
   void transEq(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
     if (it == end) [[unlikely]] {
-      bad::report(ctx.err, );
+      bad::report(ctx.err, bad::ILL_ASSIGN, pos);
       dest = nvll(pos);
       return;
     }
     trans(ctx, defs, *it);
     auto a = std::move(*it);
     if (++it == end) [[unlikely]] {
+      bad::report(ctx.err, bad::ILL_ASSIGN, pos);
       dest = std::move(a);
       return;
     }
@@ -505,13 +506,14 @@ namespace zlt::mylispc {
       setMembOper(dest, ctx, defs, pos, a, b);
       return;
     }
+    bad::report(ctx.err, bad::INV_LHS, a->pos);
     UNodes c;
     c.push_back(std::move(a));
     c.push_back(std::move(b));
     dest.reset(new SequenceOper(start, std::move(c)));
   }
 
-  void setMembOper(UNode &dest, Defs &defs, const char *start, UNode &lhs, UNode &value) {
+  void setMembOper(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, UNode &lhs, UNode &value) {
     auto &a = static_cast<GetMembOper &>(*lhs);
     array<UNode, 3> b;
     b[2] = std::move(value);
@@ -525,55 +527,60 @@ namespace zlt::mylispc {
     dest.reset(new SetMembOper(start, std::move(b)));
   }
 
-  template<>
-  void trans<">="_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    transXnaryOper<CmpGteqOper, 2>(dest, defs, start, it, end);
+  void transGtEq(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    array<UNode, 2> a;
+    transItemN(a.data(), 2, ctx, defs, it, end);
+    dest.reset(new CmpGteqOper(pos, std::move(a)));
   }
 
-  template<>
-  void trans<">>>"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<UshOper>(dest, defs, start, it, end);
-    if (a.empty()) {
-      dest = number(0, start);
-    } else if (a.size() == 1) {
-      a.push_back(number(0));
-    }
-  }
-
-  template<>
-  void trans<">>"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<RshOper>(dest, defs, start, it, end);
-    if (a.empty()) {
-      dest = number(0, start);
-    } else if (a.size() == 1) {
-      a.push_back(number(0));
-    }
-  }
-
-  template<>
-  void trans<">"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    transXnaryOper<CmpGtOper, 2>(dest, defs, start, it, end);
-  }
-
-  static void transFnParams(Function::Params &dest, Defs &defs, It it, It end);
-
-  template<>
-  void trans<"@"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    if (it == end) [[unlikely]] {
-      dest.reset(new Function(start));
+  void transGt3(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    auto a = transItems(ctx, defs, it, end);
+    if (a.empty()) [[unlikely]] {
+      dest = number(0, pos);
       return;
     }
-    auto ls = dynamic_cast<List *>(it->get());
-    if (!ls) {
-      throw Bad(bad::UNEXPECTED_TOKEN, (**it).start);
+    if (a.size() == 1) {
+      a.push_back(number(0));
+    }
+    dest.reset(new UshOper(pos, std::move(a)));
+  }
+
+  void transGt2(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    auto a = transItems(ctx, defs, it, end);
+    if (a.empty()) [[unlikely]] {
+      dest = number(0, pos);
+      return;
+    }
+    if (a.size() == 1) {
+      a.push_back(number(0));
+    }
+    dest.reset(new RshOper(pos, std::move(a)));
+  }
+
+  void transGt(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    array<UNode, 2> a;
+    transItemN(a.data(), 2, ctx, defs, it, end);
+    dest.reset(new CmpGtOper(pos, std::move(a)));
+  }
+
+  static void transFnParams(Function::Params &dest, Context &ctx, Defs &defs, It it, It end);
+
+  void transAt(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    if (it == end) [[unlikely]] {
+      dest.reset(new Function(pos));
+      return;
     }
     Defs defs1;
     Function::Params params;
-    transFnParams(params, defs1, ls->items.begin(), ls->items.end());
-    auto body = transItems(defs1, ++it, end);
+    if (auto ls = dynamic_cast<List *>(it->get()); ls) {
+      transFnParams(params, ctx, defs1, ls->items.begin(), ls->items.end());
+    } else {
+      bad::report(ctx.err, bad::UNEXPECTED_TRANS_TOKEN, (**it).pos);
+    }
+    auto body = transItems(ctx, defs1, ++it, end);
     body.push_back({});
     body.back().reset(new Return(nullptr, nvll()));
-    dest.reset(new Function(start, std::move(defs1), std::move(params), std::move(body)));
+    dest.reset(new Function(pos, std::move(defs1), std::move(params), std::move(body)));
   }
 
   using ItParam = Function::Params::iterator;
@@ -589,12 +596,13 @@ namespace zlt::mylispc {
       } else if (auto a = dynamic_cast<const List *>(it->get()); a && a->items.empty()) {
         dest.push_back(nullptr);
       } else {
-        throw Bad(bad::ILL_FN_PARAM, (**it).start);
+        bad::report(ctx.err, bad::ILL_FN_PARAM, (**it).pos);
+        dest.push_back(nullptr);
       }
     }
   }
 
-  static void cleanDupFnParams(ItParam it, ItParam end, const string *name) noexcept {
+  void cleanDupFnParams(ItParam it, ItParam end, const string *name) noexcept {
     for (; it != end; ++it) {
       if (*it == name) {
         *it = nullptr;
@@ -602,48 +610,57 @@ namespace zlt::mylispc {
     }
   }
 
-  template<>
-  void trans<"^^"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<LogicXorOper>(dest, defs, start, it, end);
-    if (a.empty()) {
-      dest = fa1se(start);
-    } else if (a.size() == 1) {
+  void transCaret2(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    auto a = transItems(ctx, defs, it, end);
+    if (a.empty()) [[unlikely]] {
+      dest = fa1se(pos);
+      return;
+    }
+    if (a.size() == 1) {
       a.push_back(fa1se());
     }
+    dest.reset(new LogicXorOper(pos, std::move(a)));
   }
 
-  template<>
-  void trans<"^"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<BitwsXorOper>(dest, defs, start, it, end);
-    if (a.empty()) {
-      dest = number(0, start);
-    } else if (a.size() == 1) {
+  void transCaret(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    auto a = transItems(ctx, defs, it, end);
+    if (a.empty()) [[unlikely]] {
+      dest = number(0, pos);
+      return;
+    }
+    if (a.size() == 1) {
       a.push_back(number(0));
     }
+    dest.reset(new BitwsXorOper(pos, std::move(a)));
   }
 
-  template<>
-  void trans<"||"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<LogicOrOper>(dest, defs, start, it, end);
-    if (a.empty()) {
-      dest = nvll(start);
-    } else if (a.size() == 1) {
-      dest = std::move(a.front());
+  void transVertical2(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    auto a = transItems(ctx, defs, it, end);
+    if (a.empty()) [[unlikely]] {
+      dest = nvll(pos);
+      return;
     }
+    if (a.size() == 1) [[unlikely]] {
+      dest = std::move(a.back());
+      return;
+    }
+    dest.reset(new LogicOrOper(pos, std::move(a)));
   }
 
-  template<>
-  void trans<"|"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    auto &a = transMultiOper<BitwsOrOper>(dest, defs, start, it, end);
-    if (a.empty()) {
-      dest = number(0, start);
-    } else if (a.size() == 1) {
+  void transVertical(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    auto a = transItems(ctx, defs, it, end);
+    if (a.empty()) [[unlikely]] {
+      dest = number(0, pos);
+      return;
+    }
+    if (a.size() == 1) {
       a.push_back(number(0));
     }
+    dest.reset(new BitwsOrOper(pos, std::move(a)));
   }
 
-  template<>
-  void trans<"~"_token>(UNode &dest, Defs &defs, const char *start, It it, It end) {
-    transUnaryOper<BitwsNotOper>(dest, defs, start, it, end);
+  void transTilde(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
+    auto a = transItem(ctx, defs, it, end);
+    dest.reset(new BitwsNotOper(pos, std::move(a)));
   }
 }

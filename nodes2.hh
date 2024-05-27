@@ -30,24 +30,23 @@ namespace zlt::mylispc {
 
   struct GetHighRef final: Node {
     Reference ref;
-    GetHighRef(const char *start, const Reference &ref) noexcept: Node(start), ref(ref) {}
+    GetHighRef(const Pos *pos, const Reference &ref) noexcept: Node(pos), ref(ref) {}
   };
 
   struct GetRef final: Node {
     Reference ref;
-    GetRef(const char *start, const Reference &ref) noexcept: Node(start), ref(ref) {}
+    GetRef(const Pos *pos, const Reference &ref) noexcept: Node(pos), ref(ref) {}
   };
 
   struct SetHighRef final: Node {
     Reference ref;
     UNode value;
-    SetHighRef(const char *start, const Reference &ref, UNode &&value) noexcept: Node(start), ref(ref), value(std::move(value))
-    {}
+    SetHighRef(const Pos *pos, const Reference &ref, UNode &&value) noexcept: Node(pos), ref(ref), value(std::move(value)) {}
   };
 
   struct SetRef final: Node {
     Reference ref;
     UNode value;
-    SetRef(const char *start, const Reference &ref, UNode &&value) noexcept: Node(start), ref(ref), value(std::move(value)) {}
+    SetRef(const Pos *pos, const Reference &ref, UNode &&value) noexcept: Node(pos), ref(ref), value(std::move(value)) {}
   };
 }

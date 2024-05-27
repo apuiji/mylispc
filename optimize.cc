@@ -23,8 +23,9 @@ namespace zlt::mylispc {
   declOptimize(Try);
   // operations begin
   declOptimize(Operation<1>);
-  template<int N>
-  declOptimize(Operation<N>);
+  declOptimize(Operation<2>);
+  declOptimize(Operation<3>);
+  declOptimize(Operation<-1>);
   // arithmetical operations begin
   declOptimize(ArithAddOper);
   declOptimize(ArithSubOper);
@@ -138,9 +139,13 @@ namespace zlt::mylispc {
   }
   // aa end
 
-  void optimize(UNode &dest, Call &src) {
+  static inline void optimizeCalling(Calling &src) {
     optimize(src.callee);
     optimize(src.args.begin(), src.args.end());
+  }
+
+  void optimize(UNode &dest, Call &src) {
+    optimizeCalling(src);
   }
 
   void optimize(UNode &dest, Defer &src) {
@@ -148,8 +153,7 @@ namespace zlt::mylispc {
   }
 
   void optimize(UNode &dest, Forward &src) {
-    optimize(src.callee);
-    optimize(src.args.begin(), src.args.end());
+    optimizeCalling(src);
   }
 
   void optimize(UNode &dest, Function &src) {
@@ -191,8 +195,7 @@ namespace zlt::mylispc {
   }
 
   void optimize(UNode &dest, Try &src) {
-    optimize(src.callee);
-    optimize(src.args.begin(), src.args.end());
+    optimizeCalling(src);
   }
 
   // operations begin
@@ -200,8 +203,18 @@ namespace zlt::mylispc {
     optimize(src.item);
   }
 
-  template<int N>
-  void optimize(UNode &dest, Operation<N> &src) {
+  void optimize(UNode &dest, Operation<2> &src) {
+    optimize(src.items[0]);
+    optimize(src.items[1]);
+  }
+
+  void optimize(UNode &dest, Operation<3> &src) {
+    optimize(src.items[0]);
+    optimize(src.items[1]);
+    optimize(src.items[2]);
+  }
+
+  void optimize(UNode &dest, Operation<-1> &src) {
     optimize(src.items.begin(), src.items.end());
   }
 

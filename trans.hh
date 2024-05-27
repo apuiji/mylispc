@@ -15,4 +15,14 @@ namespace zlt::mylispc {
       trans(ctx, defs, *it);
     }
   }
+
+  void optimize(UNode &src);
+
+  static inline void optimize(UNodes::iterator it, UNodes::iterator end) {
+    for (; it != end; ++it) {
+      optimize(*it);
+    }
+  }
+
+  void optimizeBody(UNodes &dest, UNodes::iterator it, UNodes::iterator end);
 }
