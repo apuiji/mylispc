@@ -1,5 +1,4 @@
 #include<cmath>
-#include<functional>
 #include"myutils/xyz.hh"
 #include"nodes1.hh"
 
@@ -219,27 +218,27 @@ namespace zlt::mylispc {
   }
 
   // arithmetical operations begin
-  template<class T, class F, class G>
-  void sum(UNodes &dest, T &t, It it, It end, F &&f, G &&g) {
-    for (; it != end; ++it) {
-      if (T t1; f(t1, *it)) {
-        t = g(t, t1);
+  static void sum(UNodes &dest, double &dest1, UNodes &src) {
+    for (; src.size(); src.pop_front()) {
+      if (double d; isNumConst(d, src.front())) {
+        dest1 += d;
       } else {
-        dest.push_back(std::move(*it));
+        dest.push_back(std::move(src.front()));
       }
     }
   }
 
   void optimize(UNode &dest, ArithAddOper &src) {
     optimize(src.items.begin(), src.items.end());
+    size_t n = src.items.size();
     UNodes a;
     double b = 0;
-    sum(a, b, src.items.begin(), src.items.end(), isNumConst, plus<double>());
+    sum(a, b, src.items);
     if (a.empty()) {
-      dest = number(b, src.start);
+      dest = number(b, src.pos);
       return;
     }
-    if (a.size() != src.items.size()) {
+    if (a.size() != n) {
       a.push_front(number(b));
     }
     src.items = std::move(a);
@@ -247,34 +246,48 @@ namespace zlt::mylispc {
 
   void optimize(UNode &dest, ArithSubOper &src) {
     optimize(src.items.begin(), src.items.end());
-    UNodes a;
-    double b = 0;
-    sum(a, b, next(src.items.begin()), src.items.end(), isNumConst, plus<double>());
-    if (double c; isNumConst(c, src.items.front())) {
-      if (a.empty()) {
-        dest = number(c - b, src.start);
+    size_t n = src.items.size();
+    auto a = std::move(src.items.front());
+    src.items.pop_front();
+    UNodes b;
+    double c = 0;
+    sum(b, c, src.items);
+    if (double d; isNumConst(d, a)) {
+      if (b.empty()) {
+        dest = number(d - c, src.pos);
         return;
       }
-      a.push_front(number(c - b));
+      b.push_front(number(d - c));
     } else {
-      a.push_front(std::move(src.items.front()));
-      if (a.size() != src.items.size()) {
-        a.push_back(number(b));
+      b.push_front(std::move(a));
+      if (b.size() != n) {
+        b.push_back(number(c));
       }
     }
-    src.items = std::move(a);
+    src.items = std::move(b);
+  }
+
+  static void mul(UNodes &dest, double &dest1, UNodes &src) {
+    for (; src.size(); src.pop_front()) {
+      if (double d; isNumConst(d, src.front())) {
+        dest1 *= d;
+      } else {
+        dest.push_back(std::move(src.front()));
+      }
+    }
   }
 
   void optimize(UNode &dest, ArithMulOper &src) {
     optimize(src.items.begin(), src.items.end());
+    size_t n = src.items.size();
     UNodes a;
     double b = 1;
-    sum(a, b, src.items.begin(), src.items.end(), isNumConst, multiplies<double>());
-    if (a.empty()) {
-      dest = number(b, src.start);
+    mul(a, b, src.items);
+    if (a.empty()) [[unlikely]] {
+      dest = number(b, src.pos);
       return;
     }
-    if (a.size() != src.items.size()) {
+    if (a.size() != n) {
       a.push_front(number(b));
     }
     src.items = std::move(a);
@@ -282,34 +295,47 @@ namespace zlt::mylispc {
 
   void optimize(UNode &dest, ArithDivOper &src) {
     optimize(src.items.begin(), src.items.end());
-    UNodes a;
-    double b = 0;
-    sum(a, b, next(src.items.begin()), src.items.end(), isNumConst, multiplies<double>());
-    if (double c; isNumConst(c, src.items.front())) {
-      if (a.empty()) {
-        dest = number(c / b, src.start);
+    size_t n = src.items.size();
+    auto a = std::move(src.items.front());
+    src.items.pop_front();
+    UNodes b;
+    double c = 1;
+    mul(b, c, src.items);
+    if (double d; isNumConst(d, a)) {
+      if (b.empty()) {
+        dest = number(d / c, src.pos);
         return;
       }
-      a.push_front(number(c / b));
+      b.push_front(number(d / c));
     } else {
-      a.push_front(std::move(src.items.front()));
-      if (a.size() != src.items.size()) {
-        a.push_back(number(b));
+      b.push_front(std::move(a));
+      if (b.size() != n) {
+        a.push_back(number(c));
       }
     }
-    src.items = std::move(a);
+    src.items = std::move(b);
   }
   // arithmetical operations end
 
   // logical operations begin
-  static bool logicAnd(UNodes &dest, It it, It end);
+  static void logicAnd(UNodes &dest, UNodes &src) {
+    for (; src.size() > 1; src.pop_front()) {
+      bool b;
+      if (!isBoolConst(b, src.front())) {
+        dest.push_back(std::move(src.front()));
+        continue;
+      }
+      if (!b) {
+        break;
+      }
+    }
+    dest.push_back(std::move(src.front()));
+  }
 
   void optimize(UNode &dest, LogicAndOper &src) {
     optimize(src.items.begin(), src.items.end());
     UNodes a;
-    if (logicAnd(a, src.items.begin(), prev(src.items.end()))) {
-      a.push_back(std::move(src.items.back()));
-    }
+    logicAnd(a, src.items);
     if (a.size() == 1) {
       dest = std::move(a.front());
     } else {
@@ -317,66 +343,59 @@ namespace zlt::mylispc {
     }
   }
 
-  bool logicAnd(UNodes &dest, It it, It end) {
-    for (; it != end; ++it) {
-      if (bool b; isBoolConst(b, *it)) {
-        if (!b) {
-          dest.push_back(std::move(*it));
-          return false;
-        }
-      } else {
-        dest.push_back(std::move(*it));
+  static void logicOr(UNodes &dest, UNodes &src) {
+    for (; src.size() > 1; src.pop_front()) {
+      bool b;
+      if (!isBoolConst(b, src.front())) {
+        dest.push_back(std::move(src.front()));
+        continue;
+      }
+      if (b) {
+        break;
       }
     }
-    return true;
+    dest.push_back(std::move(src.front()));
   }
-
-  static bool logicOr(UNodes &dest, It it, It end);
 
   void optimize(UNode &dest, LogicOrOper &src) {
     optimize(src.items.begin(), src.items.end());
     UNodes a;
-    if (logicOr(a, src.items.begin(), prev(src.items.end()))) {
-      a.push_back(std::move(src.items.back()));
-    }
+    logicOr(a, src.items);
     if (a.size() == 1) {
       dest = std::move(a.front());
     } else {
       src.items = std::move(a);
     }
-  }
-
-  bool logicOr(UNodes &dest, It it, It end) {
-    for (; it != end; ++it) {
-      if (bool b; isBoolConst(b, *it)) {
-        if (b) {
-          dest.push_back(std::move(*it));
-          return false;
-        }
-      } else {
-        dest.push_back(std::move(*it));
-      }
-    }
-    return true;
   }
 
   void optimize(UNode &dest, LogicNotOper &src) {
     optimize(src.item);
     if (bool b; isBoolConst(b, src.item)) {
-      dest = boo1(!b, src.start);
+      dest = boo1(!b, src.pos);
+    }
+  }
+
+  static void logicXor(UNodes &dest, bool &dest1, UNodes &src) {
+    for (; src.size(); src.pop_front()) {
+      if (bool b; isBoolConst(b, src.front())) {
+        dest1 = dest1 ^ b;
+      } else {
+        dest.push_back(std::move(src.front()));
+      }
     }
   }
 
   void optimize(UNode &dest, LogicXorOper &src) {
     optimize(src.items.begin(), src.items.end());
+    size_t n = src.items.size();
     UNodes a;
     bool b = false;
-    sum(a, b, src.items.begin(), src.items.end(), isBoolConst, [] (bool x, bool y) { return x ^ y; });
-    if (a.empty()) {
-      dest = boo1(b, src.start);
+    logicXor(a, b, src.items);
+    if (a.empty()) [[unlikely]] {
+      dest = boo1(b, src.pos);
       return;
     }
-    if (a.size() != src.items.size()) {
+    if (a.size() != n) {
       a.push_back(boo1(b));
     }
     src.items = std::move(a);
@@ -384,16 +403,27 @@ namespace zlt::mylispc {
   // logical operations end
 
   // bitwise operations begin
+  static void bitwsAnd(UNodes &dest, int &dest1, UNodes &src) {
+    for (; src.size(); src.pop_front()) {
+      if (int i; isIntConst(i, src.front())) {
+        dest1 = dest1 & i;
+      } else {
+        dest.push_back(std::move(src.front()));
+      }
+    }
+  }
+
   void optimize(UNode &dest, BitwsAndOper &src) {
     optimize(src.items.begin(), src.items.end());
+    size_t n = src.items.size();
     UNodes a;
     int b = 0;
-    sum(a, b, src.items.begin(), src.items.end(), isIntConst, bit_and<int>());
-    if (a.empty()) {
-      dest = number(b, src.start);
+    bitwsAnd(a, b, src.items);
+    if (a.empty()) [[unlikely]] {
+      dest = number(b, src.pos);
       return;
     }
-    if (a.size() != src.items.size()) {
+    if (a.size() != n) {
       a.push_front(number(b));
     }
     src.items = std::move(a);
