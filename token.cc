@@ -31,11 +31,6 @@ namespace zlt::mylispc::token {
     ifToken("#movedef");
     ifToken("#undef");
     // preproc operations end
-    // mark operations begin
-    ifToken("$poppos");
-    ifToken("$pos");
-    ifToken("$pushpos");
-    // mark operations end
     ifToken("!");
     ifToken("%");
     ifToken("&&");

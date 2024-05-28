@@ -1,6 +1,7 @@
 #include<iterator>
 #include"nodes1.hh"
 #include"token.hh"
+#include"trans.hh"
 
 using namespace std;
 
@@ -9,7 +10,7 @@ namespace zlt::mylispc {
   using Defs = set<const string *>;
   using It = UNodes::iterator;
 
-  static void transList(Context &ctx, Defs &defs, const Pos *pos, It it, It end);
+  static void transList(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end);
 
   void trans(Context &ctx, Defs &defs, UNode &src) {
     if (auto a = dynamic_cast<Number *>(src.get()); a) {
@@ -20,7 +21,7 @@ namespace zlt::mylispc {
       return;
     }
     if (auto a = dynamic_cast<List *>(src.get()); a && a->items.size()) {
-      transList(ctx, defs, a->pos, a->items.begin(), a->items.end());
+      transList(src, ctx, defs, a->pos, a->items.begin(), a->items.end());
       return;
     }
     if (isTokenAtom<"callee"_token>(src)) {
@@ -510,7 +511,7 @@ namespace zlt::mylispc {
     UNodes c;
     c.push_back(std::move(a));
     c.push_back(std::move(b));
-    dest.reset(new SequenceOper(start, std::move(c)));
+    dest.reset(new SequenceOper(pos, std::move(c)));
   }
 
   void setMembOper(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, UNode &lhs, UNode &value) {
@@ -524,7 +525,7 @@ namespace zlt::mylispc {
       a.items.pop_back();
       b[0] = std::move(lhs);
     }
-    dest.reset(new SetMembOper(start, std::move(b)));
+    dest.reset(new SetMembOper(pos, std::move(b)));
   }
 
   void transGtEq(UNode &dest, Context &ctx, Defs &defs, const Pos *pos, It it, It end) {
@@ -587,7 +588,7 @@ namespace zlt::mylispc {
 
   static void cleanDupFnParams(ItParam it, ItParam end, const string *name) noexcept;
 
-  void transFnParams(Function::Params &dest, Defs &defs, It it, It end) {
+  void transFnParams(Function::Params &dest, Context &ctx, Defs &defs, It it, It end) {
     for (; it != end; ++it) {
       if (auto a = dynamic_cast<const IDAtom *>(it->get()); a) {
         cleanDupFnParams(dest.begin(), dest.end(), a->name);

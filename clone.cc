@@ -1,3 +1,4 @@
+#include"nodes.hh"
 #include"preproc.hh"
 
 using namespace std;
@@ -21,7 +22,7 @@ namespace zlt::mylispc {
 
   void clone(UNode &dest, const List &src) {
     UNodes items(src.items.size());
-    clone(items.begin(), src.items.begin(), src.items.end());
+    clone(items, src.items.begin(), src.items.end());
     dest.reset(new List(src.pos, std::move(items)));
   }
 

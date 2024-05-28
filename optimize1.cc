@@ -1,5 +1,6 @@
-#include"myutils/xyz.hh"
 #include"nodes1.hh"
+#include"trans.hh"
+#include"zlt/xyz.hh"
 
 using namespace std;
 
@@ -8,27 +9,26 @@ namespace zlt::mylispc {
 
   static bool isTerminated(const UNode &src) noexcept;
 
-  bool optimizeBody(UNodes &dest, It it, It end) {
-    if (it == end) [[unlikely]] {
+  bool optimizeBody(UNodes &dest, UNodes &src) {
+    if (src.empty()) [[unlikely]] {
       return true;
     }
-    It last = prev(end);
-    for (; it != last; ++it) {
-      if (Dynamicastable<Function, ID, Number, StringAtom> {}(**it)) {
+    for (; src.size() > 1; src.pop_front()) {
+      if (Dynamicastable<Function, ID, Number, StringAtom> {}(*src.front())) {
         continue;
       }
-      if (auto a = dynamic_cast<SequenceOper *>(it->get()); a) {
-        if (!optimizeBody(dest, a->items.begin(), a->items.end())) {
+      if (auto a = dynamic_cast<SequenceOper *>(src.front().get()); a) {
+        if (!optimizeBody(dest, a->items)) {
           break;
         }
         continue;
       }
-      dest.push_back(std::move(*it));
-      if (isTerminated(*it)) {
+      dest.push_back(std::move(src.front()));
+      if (isTerminated(dest.back())) {
         return false;
       }
     }
-    dest.push_back(std::move(*last));
+    dest.push_back(std::move(src.front()));
     return true;
   }
 

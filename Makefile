@@ -6,5 +6,6 @@ HEADS = \
 	nodes2.hh \
 	parse.hh \
 	preproc.hh \
-	token.hh
-OBJS = lexer.o parse.o token.o
+	token.hh \
+	trans.hh
+OBJS = clone.o lexer.o optimize.o optimize1.o parse.o preproc.o token.o trans.o

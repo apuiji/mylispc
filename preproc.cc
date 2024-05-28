@@ -3,10 +3,11 @@
 #include<fstream>
 #include<iterator>
 #include<sstream>
-#include"mylisp.hh"
-#include"myutils/xyz.hh"
 #include"nodes.hh"
+#include"parse.hh"
+#include"preproc.hh"
 #include"token.hh"
+#include"zlt/xyz.hh"
 
 using namespace std;
 
@@ -43,12 +44,12 @@ namespace zlt::mylispc {
       return;
     }
     if (auto p = isPound(*it); p) {
-      p(dest, ctx, src.pos, ++it, end);
+      p(dest, ctx, (**it).pos, ++it, end);
       return;
     }
     A:
     dest.push_back({});
-    clone(dest.back(), src);
+    clone(dest.back(), *it);
   }
 
   const Macro *isMacro(const Context &ctx, const UNode &src) noexcept {
@@ -156,6 +157,16 @@ namespace zlt::mylispc {
     dest.back().reset(new TokenAtom(pos, t));
   }
 
+  void idcat(ostream &dest, Context &ctx, It it, It end) {
+    for (; it != end; ++it) {
+      if (auto a = dynamic_cast<const RawAtom *>(it->get()); a) {
+        dest << a->raw();
+      } else {
+        bad::report(ctx.err, bad::INV_PREPROC_ARG, (**it).pos);
+      }
+    }
+  }
+
   static void poundDef1(Macro &dest, Context &ctx, It it, It end);
 
   void poundDef(UNodes &dest, Context &ctx, const Pos *pos, It it, It end) {
@@ -223,7 +234,7 @@ namespace zlt::mylispc {
       poundElse(dest, ctx, ++it, end);
       return;
     }
-    preprocThen(dest, ctx, pos, ++it, end);
+    poundThen(dest, ctx, pos, ++it, end);
   }
 
   void poundElse(UNodes &dest, Context &ctx, It it, It end) {
@@ -245,7 +256,7 @@ namespace zlt::mylispc {
       goto A;
     }
     if (ctx.macros.find(id->name) != ctx.macros.end()) {
-      preprocThen(dest, ctx, pos, ++it, end);
+      poundThen(dest, ctx, pos, ++it, end);
       return;
     }
     A:
@@ -253,13 +264,13 @@ namespace zlt::mylispc {
   }
 
   void poundThen(UNodes &dest, Context &ctx, const Pos *pos, It it, It end) {
-    It it1 = find(it, end, isTokenAtom<"#if"_token>);
+    It it1 = find_if(it, end, isTokenAtom<"#if"_token>);
     preproc(dest, ctx, it, it1);
   }
 
   static bool includeFile(string_view &dest, Context &ctx, const UNode &src);
 
-  void poundInclude(ostream &dest, Context &ctx, const Pos *pos, It it, It end) {
+  void poundInclude(UNodes &dest, Context &ctx, const Pos *pos, It it, It end) {
     if (it == end) [[unlikely]] {
       return;
     }
@@ -303,7 +314,7 @@ namespace zlt::mylispc {
     return false;
   }
 
-  void poundMovedef(ostream &dest, Context &ctx, const Pos *pos, It it, It end) {
+  void poundMovedef(UNodes &dest, Context &ctx, const Pos *pos, It it, It end) {
     if (it == end) [[unlikely]] {
       return;
     }
@@ -337,7 +348,7 @@ namespace zlt::mylispc {
     ctx.macros.erase(itMacro);
   }
 
-  void poundUndef(ostream &dest, Context &ctx, const Pos *pos, It it, It end) {
+  void poundUndef(UNodes &dest, Context &ctx, const Pos *pos, It it, It end) {
     if (it == end) [[unlikely]] {
       return;
     }

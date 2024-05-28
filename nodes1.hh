@@ -1,6 +1,7 @@
 #pragma once
 
 #include<array>
+#include<vector>
 #include"nodes.hh"
 #include"token.hh"
 

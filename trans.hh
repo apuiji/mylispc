@@ -24,5 +24,6 @@ namespace zlt::mylispc {
     }
   }
 
-  void optimizeBody(UNodes &dest, UNodes::iterator it, UNodes::iterator end);
+  /// @return unterminated
+  bool optimizeBody(UNodes &dest, UNodes &src);
 }

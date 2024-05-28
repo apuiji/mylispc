@@ -71,7 +71,7 @@ namespace zlt::mylispc {
 
   Prod lexerStr(string &strval, stringstream &ss, Context &ctx, int quot, It it, It end) {
     if (it == end) [[unlikely]] {
-      bad::report(ctx.err, bad::UNTERMINATED_STRING, ctx.pos, ctx.posk);
+      bad::report(ctx.err, bad::UNTERMINATED_STRING, ctx.pos);
       throw bad::Fatal();
     }
     if (It it1 = find_if(it, end, [quot] (char c) { return c == '\\' || c == quot; }); it1 != it) {

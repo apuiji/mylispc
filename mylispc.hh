@@ -2,6 +2,7 @@
 
 #include<list>
 #include<ostream>
+#include<set>
 #include<string>
 #include"zlt/myset.hh"
 
@@ -72,6 +73,10 @@ namespace zlt::mylispc {
     }
 
     void report(std::ostream &dest, int bad, const Pos &pos);
+
+    static inline void report(std::ostream &dest, int bad, const Pos *pos) {
+      report(dest, bad, *pos);
+    }
 
     struct Fatal {
       // empty
