@@ -83,4 +83,6 @@ namespace zlt::mylispc {
     };
   }
   // bads end
+
+  void compile(std::string &dest, UNode &src);
 }

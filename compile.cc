@@ -21,7 +21,6 @@ namespace zlt::mylispc {
 
   using It = UNodes::const_iterator;
 
-  template<class It>
   static inline void compile(ostream &dest, const Scope &scope, It it, It end) {
     for (; it != end; ++it) {
       compile(dest, scope, *it);
@@ -34,7 +33,6 @@ namespace zlt::mylispc {
     Scope scope(mf.defs, mf.closureDefs, mf.hasGuard);
     stringstream ss;
     compile(ss, scope, mf.body.begin(), mf.body.end());
-    ss.put(opcode::PUSH_DEFER);
     dest = ss.str();
   }
 
@@ -44,7 +42,6 @@ namespace zlt::mylispc {
     dest = ss.str();
   }
 
-  template<class It>
   static inline void compile(string &dest, const Scope &scope, It it, It end) {
     stringstream ss;
     compile(ss, scope, it, end);
@@ -176,14 +173,19 @@ namespace zlt::mylispc {
     #undef ifType
   }
 
-  template<class T>
-  static inline void write(ostream &dest, const T &src) {
-    dest.write((const char *) &src, sizeof(T));
+  #define defWrite(name, T) \
+  static inline void write_##name(ostream &dest, T t) { \
+    dest.write((const char *) &t, sizeof(T)); \
   }
 
-  static inline void writeSize(ostream &dest, size_t n) {
-    write(dest, n);
-  }
+  #define defWrite1(T) defWrite(T, T)
+
+  defWrite1(double);
+  defWrite1(size_t);
+  defWrite(ptr, void *);
+
+  #undef defWrite1
+  #undef defWrite
 
   static void compileCalling(ostream &dest, const Scope &scope, const Calling &src) {
     compile(dest, scope, src.callee);
@@ -198,11 +200,11 @@ namespace zlt::mylispc {
     compileCalling(dest, scope, src);
     dest.put(opcode::PUSH_BP);
     dest.put(opcode::PUSH_SP_BACK);
-    writeSize(dest, src.args.size() + 1);
+    write_size_t(dest, src.args.size() + 1);
     dest.put(opcode::PUSH_PC_JMP);
-    writeSize(dest, 1 + sizeof(size_t));
+    write_size_t(dest, 1 + sizeof(size_t));
     dest.put(opcode::CALL);
-    writeSize(dest, src.args.size());
+    write_size_t(dest, src.args.size());
     dest.put(opcode::POP_SP);
     dest.put(opcode::POP_BP);
   }
@@ -219,14 +221,14 @@ namespace zlt::mylispc {
   void compile(ostream &dest, const Scope &scope, const Forward &src) {
     compileCalling(dest, scope, src);
     dest.put(opcode::FORWARD);
-    writeSize(dest, src.args.size());
+    write_size_t(dest, src.args.size());
     if (scope.hasGuard) {
       dest.put(opcode::PUSH_PC_JMP);
-      writeSize(dest, 1);
+      write_size_t(dest, 1);
       dest.put(opcode::CLEAN_FN_GUARDS);
     }
     dest.put(opcode::CALL);
-    writeSize(dest, src.args.size());
+    write_size_t(dest, src.args.size());
   }
 
   static void compileFnBody(string &dest, const Scope &scope, const Function1 &src);
@@ -238,10 +240,10 @@ namespace zlt::mylispc {
     string body;
     compileFnBody(body, scope, src);
     dest.put(opcode::MAKE_FN);
-    writeSize(dest, src.paramn);
-    writeSize(dest, src.defs.size());
-    writeSize(dest, src.closureDefs.size());
-    writeSize(dest, body.size());
+    write_size_t(dest, src.paramn);
+    write_size_t(dest, src.defs.size());
+    write_size_t(dest, src.closureDefs.size());
+    write_size_t(dest, body.size());
     dest << body;
     if (src.closureDefs.empty()) {
       return;
@@ -250,7 +252,7 @@ namespace zlt::mylispc {
     for (auto [name, ref] : src.closureDefs) {
       getRef(dest, scope, ref);
       dest.put(opcode::SET_FN_CLOSURE);
-      writeSize(dest, closureDefIndex(scope, name));
+      write_size_t(dest, closureDefIndex(scope, name));
     }
     dest.put(opcode::POP);
   }
@@ -259,7 +261,7 @@ namespace zlt::mylispc {
     stringstream ss;
     for (auto name : src.highDefs) {
       ss.put(opcode::WRAP_HIGH_REF);
-      writeSize(ss, defIndex(scope, name));
+      write_size_t(ss, defIndex(scope, name));
     }
     compile(ss, scope, src.body.begin(), src.body.end());
     dest = ss.str();
@@ -290,13 +292,13 @@ namespace zlt::mylispc {
   void getRef(ostream &dest, const Scope &scope, const Reference &src) {
     if (src.scope == Reference::CLOSURE_SCOPE) {
       dest.put(opcode::GET_CLOSURE);
-      writeSize(dest, closureDefIndex(scope, src.name));
+      write_size_t(dest, closureDefIndex(scope, src.name));
     } else if (src.scope == Reference::GLOBAL_SCOPE) {
       dest.put(opcode::GET_GLOBAL);
-      write(dest, src.name);
+      write_ptr(dest, src.name);
     } else {
       dest.put(opcode::GET_LOCAL);
-      writeSize(dest, defIndex(scope, src.name));
+      write_size_t(dest, defIndex(scope, src.name));
     }
   }
 
@@ -322,10 +324,10 @@ namespace zlt::mylispc {
     string elze;
     compile(elze, scope, src.elze);
     dest.put(opcode::JIF);
-    writeSize(dest, elze.size() + 1 + sizeof(size_t));
+    write_size_t(dest, elze.size() + 1 + sizeof(size_t));
     dest << elze;
     dest.put(opcode::JMP);
-    writeSize(dest, then.size());
+    write_size_t(dest, then.size());
     dest << then;
   }
 
@@ -335,7 +337,7 @@ namespace zlt::mylispc {
 
   void compile(ostream &dest, const Scope &scope, const Number &src) {
     dest.put(opcode::NUM_LITERAL);
-    write(dest, src.value);
+    write_double(dest, src.value);
   }
 
   void compile(ostream &dest, const Scope &scope, const Return &src) {
@@ -343,7 +345,7 @@ namespace zlt::mylispc {
     if (scope.hasGuard) {
       dest.put(opcode::PUSH);
       dest.put(opcode::PUSH_PC_JMP);
-      writeSize(dest, 1);
+      write_size_t(dest, 1);
       dest.put(opcode::CLEAN_FN_GUARDS);
       dest.put(opcode::POP);
     }
@@ -361,16 +363,16 @@ namespace zlt::mylispc {
     compile(dest, scope, src.value);
     if (src.ref.scope == Reference::GLOBAL_SCOPE) {
       dest.put(opcode::SET_GLOBAL);
-      write(dest, src.ref.name);
+      write_ptr(dest, src.ref.name);
     } else {
       dest.put(opcode::SET_LOCAL);
-      writeSize(dest, defIndex(scope, src.ref.name));
+      write_size_t(dest, defIndex(scope, src.ref.name));
     }
   }
 
   void compile(ostream &dest, const Scope &scope, const StringAtom &src) {
     dest.put(opcode::STRING_LITERAL);
-    write(dest, src.value);
+    write_ptr(dest, src.value);
   }
 
   void compile(ostream &dest, const Scope &scope, const Throw &src) {
@@ -380,16 +382,15 @@ namespace zlt::mylispc {
   }
 
   void compile(ostream &dest, const Scope &scope, const Try &src) {
+    /// TODO:
     compileCalling(dest, scope, src);
     dest.put(opcode::PUSH_BP);
     dest.put(opcode::PUSH_SP_BACK);
-    writeSize(dest, src.args.size() + 1);
-    dest.put(opcode::CATCH_NAT_FN);
-    dest.put(opcode::PUSH_GUARD);
+    write_size_t(dest, src.args.size() + 1);
     dest.put(opcode::PUSH_PC_JMP);
     writeSize(dest, 4 + sizeof(size_t));
     dest.put(opcode::CALL);
-    writeSize(dest, src.args.size());
+    write_size_t(dest, src.args.size());
     dest.put(opcode::NULL_LITERAL);
     dest.put(opcode::PUSH);
     dest.put(opcode::CLEAN_GUARDS);
@@ -455,9 +456,9 @@ namespace zlt::mylispc {
       s = ss.str();
     }
     dest.put(opcode::JIF);
-    writeSize(dest, 1 + sizeof(size_t));
+    write_size_t(dest, 1 + sizeof(size_t));
     dest.put(opcode::JMP);
-    writeSize(dest, s.size());
+    write_size_t(dest, s.size());
     dest << s;
   }
 
@@ -479,7 +480,7 @@ namespace zlt::mylispc {
       s = ss.str();
     }
     dest.put(opcode::JIF);
-    writeSize(dest, s.size());
+    write_size_t(dest, s.size());
     dest << s;
   }
 
