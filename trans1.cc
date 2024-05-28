@@ -17,21 +17,20 @@ namespace zlt::mylispc {
 
   static void trans(Scope &scope, UNode &src);
 
-  template<class It>
   static inline void trans(Scope &scope, It it, It end) {
     for (; it != end; ++it) {
       trans(scope, *it);
     }
   }
 
-  void trans1(UNode &dest, It it, It end) {
+  void trans1(UNode &dest, UNodes &src) {
     Scope gs(nullptr, Defs());
-    trans(gs, it, end);
+    trans(gs, src.begin(), src.end());
     auto f = new Function1(nullptr);
     dest.reset(f);
     f->paramn = 0;
     f->hasGuard = gs.hasGuard;
-    f->body = UNodes(move_iterator(it), move_iterator(end));
+    f->body = std::move(src);
   }
 
   #define declTrans(T) \
@@ -49,8 +48,9 @@ namespace zlt::mylispc {
   declTrans(Throw);
   declTrans(Try);
   declTrans(Operation<1>);
-  template<int N>
-  declTrans(Operation<N>);
+  declTrans(Operation<2>);
+  declTrans(Operation<3>);
+  declTrans(Operation<-1>);
 
   #undef declTrans
 
@@ -78,9 +78,13 @@ namespace zlt::mylispc {
     #undef ifType
   }
 
-  void trans(UNode &dest, Scope &scope, Call &src) {
+  static inline void transCalling(Scope &scope, Calling &src) {
     trans(scope, src.callee);
     trans(scope, src.args.begin(), src.args.end());
+  }
+
+  void trans(UNode &dest, Scope &scope, Call &src) {
+    transCalling(scope, src);
   }
 
   void trans(UNode &dest, Scope &scope, Defer &src) {
@@ -88,8 +92,7 @@ namespace zlt::mylispc {
   }
 
   void trans(UNode &dest, Scope &scope, Forward &src) {
-    trans(scope, src.callee);
-    trans(scope, src.args.begin(), src.args.end());
+    transCalling(scope, src);
   }
 
   void trans(UNode &dest, Scope &scope, Function &src) {
@@ -101,7 +104,7 @@ namespace zlt::mylispc {
     }
     Scope fs(&scope, src.defs);
     trans(fs, src.body.begin(), src.body.end());
-    auto f = new Function1(src.start);
+    auto f = new Function1(src.pos);
     dest.reset(f);
     f->paramn = src.params.size();
     f->defs = std::move(defs);
@@ -120,7 +123,7 @@ namespace zlt::mylispc {
 
   void trans(UNode &dest, Scope &scope, ID &src) {
     auto ref = findDef(scope, src.name, true);
-    dest.reset(new GetRef(src.start, ref));
+    dest.reset(new GetRef(src.pos, ref));
   }
 
   Reference findDef(Scope &scope, const string *name, bool local) {
@@ -157,7 +160,7 @@ namespace zlt::mylispc {
   void trans(UNode &dest, Scope &scope, SetID &src) {
     auto ref = findDef(scope, src.name, true);
     trans(scope, src.value);
-    dest.reset(new SetRef(src.start, ref, std::move(src.value)));
+    dest.reset(new SetRef(src.pos, ref, std::move(src.value)));
   }
 
   void trans(UNode &dest, Scope &scope, Throw &src) {
@@ -165,16 +168,25 @@ namespace zlt::mylispc {
   }
 
   void trans(UNode &dest, Scope &scope, Try &src) {
-    trans(scope, src.callee);
-    trans(scope, src.args.begin(), src.args.end());
+    transCalling(scope, src);
   }
 
   void trans(UNode &dest, Scope &scope, Operation<1> &src) {
     trans(scope, src.item);
   }
 
-  template<int N>
-  void trans(UNode &dest, Scope &scope, Operation<N> &src) {
+  void trans(UNode &dest, Scope &scope, Operation<2> &src) {
+    trans(scope, src.items[0]);
+    trans(scope, src.items[1]);
+  }
+
+  void trans(UNode &dest, Scope &scope, Operation<3> &src) {
+    trans(scope, src.items[0]);
+    trans(scope, src.items[1]);
+    trans(scope, src.items[2]);
+  }
+
+  void trans(UNode &dest, Scope &scope, Operation<-1> &src) {
     trans(scope, src.items.begin(), src.items.end());
   }
 }

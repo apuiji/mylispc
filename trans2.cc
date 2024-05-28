@@ -8,7 +8,6 @@ namespace zlt::mylispc {
 
   static void trans(const HighDefs &highDefs, UNode &src);
 
-  template<class It>
   static inline void trans(const HighDefs &highDefs, It it, It end) {
     for (; it != end; ++it) {
       trans(highDefs, *it);
@@ -34,8 +33,9 @@ namespace zlt::mylispc {
   declTrans(Throw);
   declTrans(Try);
   declTrans(Operation<1>);
-  template<int N>
-  declTrans(Operation<N>);
+  declTrans(Operation<2>);
+  declTrans(Operation<3>);
+  declTrans(Operation<-1>);
 
   #undef declTrans
 
@@ -63,9 +63,10 @@ namespace zlt::mylispc {
     #undef ifType
   }
 
+  static inline void transCalling(const HighDefs &highDefs, Calling &src);
+
   void trans(UNode &dest, const HighDefs &highDefs, Call &src) {
-    trans(highDefs, src.callee);
-    trans(highDefs, src.args.begin(), src.args.end());
+    transCalling(highDefs, src);
   }
 
   void trans(UNode &dest, const HighDefs &highDefs, Defer &src) {
@@ -73,8 +74,7 @@ namespace zlt::mylispc {
   }
 
   void trans(UNode &dest, const HighDefs &highDefs, Forward &src) {
-    trans(highDefs, src.callee);
-    trans(highDefs, src.args.begin(), src.args.end());
+    transCalling(highDefs, src);
   }
 
   void trans(UNode &dest, const HighDefs &highDefs, Function1 &src) {
@@ -85,7 +85,7 @@ namespace zlt::mylispc {
 
   void trans(UNode &dest, const HighDefs &highDefs, GetRef &src) {
     if (isHighDef(highDefs, src.ref)) {
-      dest.reset(new GetHighRef(src.start, src.ref));
+      dest.reset(new GetHighRef(src.pos, src.ref));
     }
   }
 
@@ -125,16 +125,25 @@ namespace zlt::mylispc {
   }
 
   void trans(UNode &dest, const HighDefs &highDefs, Try &src) {
-    trans(highDefs, src.callee);
-    trans(highDefs, src.args.begin(), src.args.end());
+    transCalling(highDefs, src);
   }
 
   void trans(UNode &dest, const HighDefs &highDefs, Operation<1> &src) {
     trans(highDefs, src.item);
   }
 
-  template<int N>
-  void trans(UNode &dest, const HighDefs &highDefs, Operation<N> &src) {
+  void trans(UNode &dest, const HighDefs &highDefs, Operation<2> &src) {
+    trans(highDefs, src.items[0]);
+    trans(highDefs, src.items[1]);
+  }
+
+  void trans(UNode &dest, const HighDefs &highDefs, Operation<3> &src) {
+    trans(highDefs, src.items[0]);
+    trans(highDefs, src.items[1]);
+    trans(highDefs, src.items[2]);
+  }
+
+  void trans(UNode &dest, const HighDefs &highDefs, Operation<-1> &src) {
     trans(highDefs, src.items.begin(), src.items.end());
   }
 }

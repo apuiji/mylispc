@@ -26,4 +26,7 @@ namespace zlt::mylispc {
 
   /// @return unterminated
   bool optimizeBody(UNodes &dest, UNodes &src);
+
+  void trans1(UNode &dest, UNodes &src);
+  void trans2(UNode &src);
 }
