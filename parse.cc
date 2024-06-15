@@ -39,7 +39,7 @@ namespace zlt::mylispc {
     auto pos0 = addPos(ctx.poss, ctx.pos);
     auto raw0 = string::make(start0, end0);
     if (token0 == token::NUMBER) {
-      auto raw = cloneAndAddSymbol(ctx.symbols, raw0);
+      auto raw = addSymbol1(ctx.symbols, raw0);
       dest = neo<NumberAtom>();
       pointTo<NumberAtom>(dest) = makeNumberAtom(pos0, raw, numval0);
       return end0;
@@ -52,7 +52,7 @@ namespace zlt::mylispc {
       return end0;
     }
     if (token0 == token::ID) {
-      auto name = cloneAndAddSymbol(ctx.symbols, raw0);
+      auto name = addSymbol1(ctx.symbols, raw0);
       dest = neo<IDAtom>();
       pointTo<IDAtom>(dest) = makeIDAtom(pos0, name);
       return end0;

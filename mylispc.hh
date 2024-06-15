@@ -34,7 +34,12 @@ namespace zlt::mylispc {
 
   // symbols begin
   const String *addSymbol(Set<String> &dest, const String &symbol);
-  const String *cloneAndAddSymbol(Symbols &dest, const String &symbol);
+
+  /// unless symbol already exists, clone and add it
+  const String *addSymbol1(Set<String> &dest, const String &symbol);
+
+  /// if symbol already exists, free data of param symbol
+  const String *addSymbol2(Set<String> &dest, String &symbol);
   // symbols end
 
   // positions begin

@@ -24,11 +24,12 @@ namespace zlt::mylispc {
     Set<String> &symbols;
     Set<Pos> &poss;
     Map<const String *, Macro> &macros;
+    FILE *idout;
   };
 
   static inline PreprocContext makePreprocContext(
-    FILE *err, Set<String> &symbols, Set<Pos> &poss, Map<const String *, Macro> &macros) noexcept {
-    return (PreprocContext) { .err = err, .symbols = symbols, .poss = poss, .macros = macros };
+    FILE *err, Set<String> &symbols, Set<Pos> &poss, Map<const String *, Macro> &macros, FILE *idout) noexcept {
+    return (PreprocContext) { .err = err, .symbols = symbols, .poss = poss, .macros = macros, .idout = idout };
   }
 
   void preproc(void *&dest, PreprocContext &ctx, const Pos *upPos, void *&src);

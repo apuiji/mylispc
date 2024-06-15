@@ -34,7 +34,7 @@ namespace zlt::mylispc {
 
   static const Macro *isMacro(const Context &ctx, const void *src) noexcept;
 
-  using Pound = void (void *&dest, Context &ctx, const Pos *upPos, const Pos *pos, void *&src);
+  using Pound = void (void *&dest, Context &ctx, const Pos *upPos, void *&src);
 
   static Pound *isPound(const void *src) noexcept;
 
@@ -53,7 +53,7 @@ namespace zlt::mylispc {
     }
     if (auto p = isPound(first); p) {
       deleteNode(link::pop(first));
-      p(dest, ctx, upPos, memberOf(first, &Node::pos), memberOf(first, &Link::first));
+      p(dest, ctx, upPos, src);
       return;
     }
     preproc1(dest, ctx, upPos, src);
@@ -107,28 +107,40 @@ namespace zlt::mylispc {
     return nullptr;
   }
 
-  static bool tostr(string_view &dest, It it, It end) noexcept;
+  static String tostr(const void *src) noexcept;
 
-  void pound(UNodes &dest, Context &ctx, const Pos *pos, It it, It end) {
-    string_view s;
-    if (!tostr(s, it, end)) [[unlikely]] {
-      bad::report(ctx.err, bad::INV_PREPROC_ARG, (**it).pos);
+  void pound(void *&dest, Context &ctx, const Pos *upPos, void *&src) {
+    auto pos = memberOf(src, &Node::pos);
+    pos = addPos(ctx.poss, makePos(upPos, *pos));
+    auto s = tostr(memberOf(src, &List::first));
+    const String *value;
+    if (s.data) {
+      value = addSymbol1(ctx.symbols, s);
+    } else {
+      bad::report(ctx.err, bad::INV_PREPROC_ARG_ERR, pos1);
+      value = addSymbol1(ctx.symbols, string::make(""));
     }
-    auto value = addSymbol(ctx.symbols, s);
-    dest.push_back({});
-    dest.back().reset(new StringAtom(pos, value));
+    deleteNode(link::pop(src));
+    dest = neo<StringAtom>();
+    pointTo<StringAtom>(dest) = makeStringAtom(pos, value);
+    preproc(memberOf(dest, &Link::next), ctx, upPos, src);
   }
 
-  bool tostr(string_view &dest, It it, It end) noexcept {
-    if (it == end) [[unlikely]] {
-      dest = "";
-      return true;
+  String tostr(const void *src) noexcept {
+    if (!src) [[unlikely]] {
+      return string::make();
     }
-    if (auto a = dynamic_cast<const RawAtom *>(it->get()); a) {
-      dest = a->raw();
-      return true;
+    int clazz = memberOf(src, &Node::clazz);
+    if (clazz == ID_ATOM_CLASS) {
+      return *memberOf(src, &IDAtom::name);
     }
-    return false;
+    if (clazz == NUM_ATOM_CLASS) {
+      return *memberOf(src, &NumAtom::raw);
+    }
+    if (clazz == TOKEN_ATOM_CLASS) {
+      return token::raw(memberOf(src, &TokenAtom::token));
+    }
+    return string::make();
   }
 
   static void idcat(ostream &dest, Context &ctx, It it, It end);
