@@ -1,6 +1,7 @@
 #include<cctype>
 #include"parse.hh"
 #include"token.hh"
+#include"zlt/guard.hh"
 
 namespace zlt::mylispc {
   using Context = ParseContext;

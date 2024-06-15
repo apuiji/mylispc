@@ -1,6 +1,7 @@
 #pragma once
 
 #include<cstdio>
+#include<cstdlib>
 #include"zlt/link.hh"
 #include"zlt/set.hh"
 
@@ -17,8 +18,11 @@ namespace zlt::mylispc {
     return (Node) { .link = link::make(nullptr), .clazz = clazz, .pos = pos };
   }
 
-  void unmakeNode(void *node);
-  void cleanNode(void *node);
+  void deleteNode(void *node) noexcept;
+
+  static inline void cleanNode(void *node) noexcept {
+    link::clean(node, nullptr, deleteNode);
+  }
 
   // symbols begin
   const String *addSymbol(Set<String> &dest, const String &symbol);
@@ -82,6 +86,15 @@ namespace zlt::mylispc {
     }
   }
   // bads end
+
+  template<class T>
+  static inline T *neo() {
+    auto t = (T *) malloc(sizeof(T));
+    if (!t) [[unlikely]] {
+      throw bad::Fatal(bad::OOM_FAT);
+    }
+    return t;
+  }
 
   void compile(FILE *dest, const Node *&src);
 }

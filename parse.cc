@@ -14,8 +14,7 @@ namespace zlt::mylispc {
     It start1 = nodes(dest, ctx, it, end);
     It end1 = lexer(token1, ctx, start1, end);
     if (token1 != token::E0F) {
-      bad::report(ctx.err, bad::UNEXPECTED_TOKEN_FAT, ctx.pos);
-      throw bad::Fatal();
+      throw bad::makeFat(bad::UNEXPECTED_TOKEN_FAT, ctx.pos);
     }
   }
 
@@ -41,31 +40,39 @@ namespace zlt::mylispc {
     auto raw0 = string::make(start0, end0);
     if (token0 == token::NUMBER) {
       auto raw = cloneAndAddSymbol(ctx.symbols, raw0);
-      dest.reset(new NumberAtom(pos0, raw, d));
+      dest = neo<NumberAtom>();
+      pointTo<NumberAtom>(dest) = makeNumberAtom(pos0, raw, numval0);
       return end0;
     }
-    if (_0 == token::STRING) {
-      auto value = addSymbol(ctx.symbols, std::move(s));
-      dest.reset(new StringAtom(pos0, value));
+    if (token0 == token::STRING) {
+      auto value = addSymbol(ctx.symbols, strval0);
+      strval0.data = nullptr;
+      dest = neo<StringAtom>();
+      pointTo<StringAtom>(dest) = makeStringAtom(pos0, value);
       return end0;
     }
-    if (_0 == token::ID) {
-      auto name = addSymbol(ctx.symbols, raw0);
-      dest.reset(new IDAtom(pos0, name));
+    if (token0 == token::ID) {
+      auto name = cloneAndAddSymbol(ctx.symbols, raw0);
+      dest = neo<IDAtom>();
+      pointTo<IDAtom>(dest) = makeIDAtom(pos0, name);
       return end0;
     }
-    if (_0 == "("_token) {
-      UNodes _1;
-      It start2 = nodes(_1, ctx, end0, end);
-      auto [_2, end2] = lexer(ctx, start2, end);
-      if (_2 != ")"_token) {
-        bad::report(ctx.err, bad::UNEXPECTED_TOKEN, ctx.pos);
-        throw bad::Fatal();
+    if (token0 == "("_token) {
+      void *first1 = nullptr;
+      Guard g([&first1] () { cleanNode(first1); });
+      It start2 = nodes(first1, ctx, end0, end);
+      int token2;
+      It end2 = lexer(token2, ctx, start2, end);
+      if (token2 != ")"_token) {
+        throw bad::makeFat(bad::UNEXPECTED_TOKEN, ctx.pos);
       }
-      dest.reset(new List(pos0, std::move(_1)));
+      dest = neo<List>();
+      pointTo<List>(dest) = makeList(pos0, first);
+      first1 = nullptr;
       return end2;
     }
-    dest.reset(new TokenAtom(pos0, _0));
+    dest = neo<TokenAtom>();
+    pointTo<TokenAtom>(dest) = makeTokenAtom(pos0, token0);
     return end0;
   }
 }
