@@ -1,91 +1,104 @@
-#include<algorithm>
 #include<cctype>
-#include<sstream>
 #include"parse.hh"
 #include"token.hh"
-
-using namespace std;
 
 namespace zlt::mylispc {
   using Context = ParseContext;
   using It = const char *;
 
-  It hit(It it, It end) noexcept {
+  static It lineComment(Pos &pos, It it, It end) noexcept;
+
+  It hit(Pos &pos, It it, It end) noexcept {
     if (it == end) [[unlikely]] {
       return end;
     }
     if (*it == '\n') {
-      return it;
+      ++pos.li;
+      return hit(pos, it + 1, end);
     }
     if (isspace(*it)) {
-      return hit(it + 1, end);
+      return hit(pos, it + 1, end);
     }
     if (*it == ';') {
-      return find(it + 1, end, '\n');
+      return lineComment(pos, it + 1, end);
     }
     return it;
   }
 
-  using Prod = pair<int, It>;
-
-  static Prod lexerStr(string &strval, stringstream &ss, Context &ctx, int quot, It it, It end);
-  static bool isRawChar(char c) noexcept;
-
-  Prod lexer(double &numval, string &strval, Context &ctx, It it, It end) {
+  It lineComment(Pos &pos, It it, It end) noexcept {
     if (it == end) [[unlikely]] {
-      return { token::E0F, end };
+      return end;
     }
     if (*it == '\n') {
-      return { token::EOL, it + 1 };
+      return hit(pos, it, end);
     }
-    if (*it == '(') {
-      return { "("_token, it + 1 };
-    }
-    if (*it == ')') {
-      return { ")"_token, it + 1 };
-    }
-    if (*it == '"' || *it == '\'') {
-      stringstream ss;
-      return lexerStr(strval, ss, ctx, *it, it + 1, end);
-    }
-    It it1 = find_if_not(it, end, isRawChar);
-    if (it1 == it) {
-      bad::report(ctx.err, bad::UNRECOGNIZED_SYMBOL, ctx.pos);
-      throw bad::Fatal();
-    }
-    string_view raw(it, it1 - it);
-    if (int i = token::isNumber(numval, raw); i) {
-      if (i < 0) {
-        bad::report(ctx.err, bad::NUMBER_LITERAL_OOR, ctx.pos);
-      }
-      return { token::NUMBER, it1 };
-    }
-    return { token::fromRaw(raw), it1 };
+    return lineComment(pos, it + 1, end);
   }
 
-  bool isRawChar(char c) noexcept {
-    return !strchr("\"'();", c) && !isspace(c);
+  static const char *lexerStr(string &strval, Context &ctx, int quot, It it, It end);
+  static It consumeRaw(It it, It end) noexcept;
+
+  It lexer(int &tokval, double &numval, string &strval, Context &ctx, It it, It end) {
+    if (it == end) [[unlikely]] {
+      tokval = token::E0F;
+      return end;
+    }
+    if (*it == '(') {
+      tokval = "("_token;
+      return it + 1;
+    }
+    if (*it == ')') {
+      tokval = ")"_token;
+      return it + 1;
+    }
+    if (*it == '"' || *it == '\'') {
+      tokval = token::STRING;
+      rewind(ctx.strout);
+      ctx.strsize = 0;
+      return lexerStr(strval, ctx, *it, it + 1, end);
+    }
+    It it1 = consumeRaw(it, end);
+    if (it1 == it) {
+      throw bad::makeFat(bad::UNRECOGNIZED_SYMB_FAT, ctx.pos);
+    }
+    auto raw = string::make(it, it1);
+    tokval = token::fromRaw(numval, ctx.err, ctx.pos, raw);
+    return it1;
+  }
+
+  It consumeRaw(It it, It end) noexcept {
+    while (it != end && !strchr("\"'();", *it) && !isspace(c)) {
+      ++it;
+    }
+    return it;
   }
 
   static size_t esch(int &dest, It it, It end) noexcept;
+  static It consumeStr(int quot, It it, It end) noexcept;
 
-  Prod lexerStr(string &strval, stringstream &ss, Context &ctx, int quot, It it, It end) {
+  It lexerStr(String &strval, Context &ctx, int quot, It it, It end) {
     if (it == end) [[unlikely]] {
-      bad::report(ctx.err, bad::UNTERMINATED_STRING, ctx.pos);
-      throw bad::Fatal();
+      throw bad::makeFat(bad::UNTERMINATED_STR_FAT, ctx.pos);
     }
-    if (It it1 = find_if(it, end, [quot] (char c) { return c == '\\' || c == quot; }); it1 != it) {
-      ss.write(it, it1 - it);
-      return lexerStr(strval, ss, ctx, quot, it1, end);
+    if (*it == quot) {
+      char *data = (char *) malloc(ctx.strsize);
+      if (!data) {
+        throw bad::makeFat(bad::OOM_FAT);
+      }
+      rewind(ctx.strout);
+      fread(data, 1, ctx.strsize, ctx.strout);
+      strval = string::make(data, ctx.strsize);
+      return it + 1;
     }
     if (*it == '\\') {
       int c;
       size_t n = esch(c, it + 1, end);
-      ss.put(c);
-      return lexerStr(strval, ss, ctx, quot, it + 1 + n, end);
+      fputc(c, ctx.strout);
+      return lexerStr(strval, ctx, quot, it + 1 + n, end);
     }
-    strval = ss.str();
-    return { token::STRING, it + 1 };
+    It it1 = consumeStr(quot, it + 1, end);
+    fwrite(it, 1, it1 - it, ctx.strout);
+    return lexerStr(strval, ctx, quot, it1, end);
   }
 
   static size_t esch8(int &dest, It it, It end, size_t limit) noexcept;
@@ -135,11 +148,32 @@ namespace zlt::mylispc {
   }
 
   size_t esch16(int &dest, It it, It end) noexcept {
-    if (it + 2 < end && isxdigit(it[1]) && isxdigit(it[2])) {
-      dest = stoi(string(it + 1, it + 3), nullptr, 16);
-      return 3;
+    if (end - it < 3) [[unlikely]] {
+      goto A;
     }
+    int a = isDigitChar(it[1]);
+    int b = isDigitChar(it[2]);
+    if (a < 0 || b < 0) {
+      goto A;
+    }
+    dest = (a << 4) | b;
+    return 3;
+    A:
     dest = '\\';
     return 0;
+  }
+
+  It consumeStr(int quot, It it, It end) noexcept {
+    while (it != end && *it != '\\' && *it != quot) {
+      ++it;
+    }
+    return it;
+  }
+
+  It lexer(int &tokval, Context &ctx, It it, It end) {
+    double d;
+    auto s = string::make();
+    FreeGuard fg(s.data);
+    return lexer(tokval, d, s, ctx, it, end);
   }
 }

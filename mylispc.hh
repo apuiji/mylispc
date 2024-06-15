@@ -1,49 +1,42 @@
 #pragma once
 
-#include<list>
-#include<ostream>
-#include<set>
-#include<string>
-#include"zlt/myset.hh"
+#include<cstdio>
+#include"zlt/link.hh"
+#include"zlt/set.hh"
 
 namespace zlt::mylispc {
   struct Pos;
 
   struct Node {
+    Link link;
+    int clazz;
     const Pos *pos;
-    Node(const Pos *pos = nullptr) noexcept: pos(pos) {}
-    virtual ~Node() = default;
   };
 
-  using UNode = std::unique_ptr<Node>;
-  using UNodes = std::list<UNode>;
+  static inline Node makeNode(int clazz, const Pos *pos) noexcept {
+    return (Node) { .link = link::make(nullptr), .clazz = clazz, .pos = pos };
+  }
+
+  void unmakeNode(void *node);
+  void cleanNode(void *node);
 
   // symbols begin
-  using Symbols = MySet<std::string>;
-
-  const std::string *addSymbol(Symbols &dest, std::string &&symbol);
-
-  static inline const std::string *addSymbol(Symbols &dest, std::string_view symbol) {
-    return addSymbol(dest, std::string(symbol));
-  }
+  const String *addSymbol(Set<String> &dest, const String &symbol);
+  const String *cloneAndAddSymbol(Symbols &dest, const String &symbol);
   // symbols end
 
   // positions begin
   struct Pos {
-    const std::string *file;
+    Link link;
+    const String *file;
     int li;
-    Pos(const std::string *file, int li) noexcept: file(file), li(li) {}
   };
 
-  struct PosSetComp {
-    bool operator ()(const Pos &a, const Pos &b) const noexcept {
-      return a.file < b.file || a.li < b.li;
-    }
-  };
+  static inline Pos makePos(const String *file, int li, const void *next) noexcept {
+    return (Pos) { .link = link::make(next), .file = file, .li = li };
+  }
 
-  using PosSet = std::set<Pos, PosSetComp>;
-
-  const Pos *addPos(PosSet &poss, const Pos &pos);
+  const Pos *addPos(Set<Pos> &poss, const Pos &pos);
   // positions end
 
   // bads begin
@@ -51,38 +44,44 @@ namespace zlt::mylispc {
     enum {
       NO_BAD,
       WARN = 0x100,
-      NUMBER_LITERAL_OOR,
+      NUM_LITERAL_OOR_WARN,
       ERROR = 0x200,
-      CANNOT_INCLUDE,
-      ILL_ASSIGN,
-      ILL_FN_PARAM,
-      ILL_MACRO_PARAM,
-      INV_LHS,
-      INV_PREPROC_ARG,
-      MACRO_ALREADY_DEFINED,
-      MACRO_UNDEFINED,
-      UNEXPECTED_TRANS_TOKEN,
+      CANNOT_INCLUDE_ERR,
+      ILL_ASSIGN_ERR,
+      ILL_FN_PARAM_ERR,
+      ILL_MACRO_PARAM_ERR,
+      INV_LHS_ERR,
+      INV_PREPROC_ARG_ERR,
+      MACRO_ALREADY_DEFINED_ERR,
+      MACRO_UNDEFINED_ERR,
+      UNEXPECTED_TRANS_TOKEN_ERR,
       FATAL = 0x300,
-      UNEXPECTED_TOKEN,
-      UNRECOGNIZED_SYMBOL,
-      UNTERMINATED_STRING
+      OOM_FAT,
+      UNEXPECTED_TOKEN_FAT,
+      UNRECOGNIZED_SYMB_FAT,
+      UNTERMINATED_STR_FAT
     };
 
     static inline int level(int bad) noexcept {
       return bad & 0xf00;
     }
 
-    void report(std::ostream &dest, int bad, const Pos &pos);
+    void report(FILE *dest, int bad, const Pos *pos = nullptr);
 
-    static inline void report(std::ostream &dest, int bad, const Pos *pos) {
-      report(dest, bad, *pos);
+    static inline void report(FILE *dest, int bad, const Pos &pos) {
+      report(dest, bad, &pos);
     }
 
     struct Fatal {
-      // empty
+      int code;
+      const Pos *pos;
     };
+
+    static inline Fatal makeFat(int code, const Pos *pos = nullptr) noexcept {
+      return (Fatal) { .code = code, .pos = pos };
+    }
   }
   // bads end
 
-  void compile(std::string &dest, UNode &src);
+  void compile(FILE *dest, const Node *&src);
 }

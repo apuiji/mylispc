@@ -2,52 +2,45 @@
 #include"parse.hh"
 #include"token.hh"
 
-using namespace std;
-
 namespace zlt::mylispc {
   using Context = ParseContext;
   using It = const char *;
 
-  static It node(UNode &dest, Context &ctx, It start0, It end);
-  static It nodes(UNodes &_0, Context &ctx, It end0, It end);
+  static It node(void *&dest, Context &ctx, It start0, It end);
+  static It nodes(void *&dest, Context &ctx, It end0, It end);
 
-  void parse(UNodes &dest, Context &ctx, It it, It end) {
+  void parse(void *&dest, Context &ctx, It it, It end) {
+    int token1;
     It start1 = nodes(dest, ctx, it, end);
-    auto [_1, end1] = lexer(ctx, start1, end);
-    if (_1 != token::E0F) {
-      bad::report(ctx.err, bad::UNEXPECTED_TOKEN, ctx.pos);
+    It end1 = lexer(token1, ctx, start1, end);
+    if (token1 != token::E0F) {
+      bad::report(ctx.err, bad::UNEXPECTED_TOKEN_FAT, ctx.pos);
       throw bad::Fatal();
     }
   }
 
-  It nodes(UNodes &_0, Context &ctx, It end0, It end) {
-    for (;;) {
-      UNode _1;
-      It start1 = hit(end0, end);
-      It end1 = node(_1, ctx, start1, end);
-      if (!end1) {
-        return start1;
-      }
-      _0.push_back(std::move(_1));
-      end0 = end1;
+  It nodes(void *&dest, Context &ctx, It end0, It end) {
+    It start1 = hit(ctx.pos, end0, end);
+    It end1 = node(dest, ctx, start1, end);
+    if (!end1) {
+      return start1;
     }
+    return nodes(member(dest, &Link::next), ctx, end1, end);
   }
 
-  It node(UNode &dest, Context &ctx, It start0, It end) {
-    double d;
-    string s;
-    auto [_0, end0] = lexer(d, s, ctx, start0, end);
-    if (_0 == token::E0F || _0 == ")"_token) [[unlikely]] {
+  It node(void *&dest, Context &ctx, It start0, It end) {
+    int token0;
+    double numval0;
+    auto strval0 = string::make();
+    FreeGuard fg(strval0.data);
+    It end0 = lexer(token0, numval0, strval0, ctx, start0, end);
+    if (token0 == token::E0F || token0 == ")"_token) [[unlikely]] {
       return nullptr;
     }
-    if (_0 == token::EOL) {
-      ++ctx.pos.li;
-      return node(dest, ctx, end0, end);
-    }
     auto pos0 = addPos(ctx.poss, ctx.pos);
-    string_view raw0(start0, end0 - start0);
-    if (_0 == token::NUMBER) {
-      auto raw = addSymbol(ctx.symbols, raw0);
+    auto raw0 = string::make(start0, end0);
+    if (token0 == token::NUMBER) {
+      auto raw = cloneAndAddSymbol(ctx.symbols, raw0);
       dest.reset(new NumberAtom(pos0, raw, d));
       return end0;
     }
