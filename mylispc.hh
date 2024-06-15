@@ -15,7 +15,7 @@ namespace zlt::mylispc {
   };
 
   static inline Node makeNode(int clazz, const Pos *pos) noexcept {
-    return (Node) { .link = link::make(nullptr), .clazz = clazz, .pos = pos };
+    return (Node) { .link = link::make(), .clazz = clazz, .pos = pos };
   }
 
   void deleteNode(void *node) noexcept;
@@ -23,6 +23,14 @@ namespace zlt::mylispc {
   static inline void cleanNode(void *node) noexcept {
     link::clean(node, nullptr, deleteNode);
   }
+
+  struct CleanNodeGuard {
+    void *&node;
+    CleanNodeGuard(void *&node) noexcept: node(node) {}
+    ~CleanNodeGuard() {
+      cleanNode(node);
+    }
+  };
 
   // symbols begin
   const String *addSymbol(Set<String> &dest, const String &symbol);
@@ -36,8 +44,16 @@ namespace zlt::mylispc {
     int li;
   };
 
-  static inline Pos makePos(const String *file, int li, const void *next) noexcept {
-    return (Pos) { .link = link::make(next), .file = file, .li = li };
+  static inline Pos makePos(const String *file, int li, const Pos *up = nullptr) noexcept {
+    return (Pos) { .link = link::make(up), .file = file, .li = li };
+  }
+
+  static inline Pos makePos(const Pos *up, const Pos &pos) noexcept {
+    return makePos(pos.file, pos.li, up);
+  }
+
+  static inline Pos makePos(const Pos *up, const Pos *pos) noexcept {
+    return makePos(up, *pos);
   }
 
   const Pos *addPos(Set<Pos> &poss, const Pos &pos);

@@ -4,15 +4,16 @@
 #include"zlt/map.hh"
 
 namespace zlt::mylispc {
-  void clone(void *&dest, const NumberAtom &src);
-  void clone(void *&dest, const StringAtom &src);
-  void clone(void *&dest, const IDAtom &src);
-  void clone(void *&dest, const TokenAtom &src);
-  void clone(void *&dest, const List &src);
-  void clone(void *&dest, const void *src);
-  void clones(void *&dest, const void *src);
+  void clone(void *&dest, const Pos *upPos, const NumberAtom &src);
+  void clone(void *&dest, const Pos *upPos, const StringAtom &src);
+  void clone(void *&dest, const Pos *upPos, const IDAtom &src);
+  void clone(void *&dest, const Pos *upPos, const TokenAtom &src);
+  void clone(void *&dest, const Pos *upPos, const List &src);
+  void clone(void *&dest, const Pos *upPos, const void *src);
+  void clones(void *&dest, const Pos *upPos, const void *src);
 
   struct Macro {
+    const Pos *pos;
     const String **params;
     size_t paramc;
     void *body;
@@ -31,12 +32,15 @@ namespace zlt::mylispc {
   }
 
   void preproc(void *&dest, PreprocContext &ctx, const Pos *upPos, void *&src);
-  void preprocs(void *&dest, PreprocContext &ctx, const Pos *upPos, void *&src);
 
   struct ExpandContext {
     FILE *err;
-    std::map<const std::string *, UNodes::const_iterator> map;
+    Map<const String *, const void *> map;
   };
 
-  void expand(UNodes &dest, ExpandContext &ctx, const Macro &macro, UNodes::const_iterator it, UNodes::const_iterator end);
+  static inline ExpandContext makeExpandContext(FILE *err) noexcept {
+    return (ExpandContext) { .err = err };
+  }
+
+  void expand(void *&dest, ExpandContext &ctx, const Macro &macro, const void *src);
 }

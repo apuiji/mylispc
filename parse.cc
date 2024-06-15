@@ -24,7 +24,7 @@ namespace zlt::mylispc {
     if (!end1) {
       return start1;
     }
-    return nodes(member(dest, &Link::next), ctx, end1, end);
+    return nodes(memberOf(dest, &Link::next), ctx, end1, end);
   }
 
   It node(void *&dest, Context &ctx, It start0, It end) {
@@ -59,7 +59,7 @@ namespace zlt::mylispc {
     }
     if (token0 == "("_token) {
       void *first1 = nullptr;
-      Guard g([&first1] () { cleanNode(first1); });
+      CleanNodeGuard g(first1);
       It start2 = nodes(first1, ctx, end0, end);
       int token2;
       It end2 = lexer(token2, ctx, start2, end);

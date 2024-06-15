@@ -1,8 +1,3 @@
-#include<algorithm>
-#include<filesystem>
-#include<fstream>
-#include<iterator>
-#include<sstream>
 #include"nodes.hh"
 #include"parse.hh"
 #include"preproc.hh"
@@ -13,55 +8,66 @@ using namespace std;
 
 namespace zlt::mylispc {
   using Context = PreprocContext;
-  using It = UNodes::const_iterator;
 
-  static void preprocList(UNodes &dest, Context &ctx, const Pos *pos, It it, It end);
+  static void preprocList(void *&dest, Context &ctx, const Pos *upPos, void *&src);
+  static void preproc1(void *&dest, Context &ctx, const Pos *upPos, void *&src);
 
-  void preproc(UNodes &dest, Context &ctx, const UNode &src) {
-    if (auto a = dynamic_cast<const List *>(src.get()); a) {
-      preprocList(dest, ctx, a->pos, a->items.begin(), a->items.end());
+  void preproc(void *&dest, Context &ctx, const Pos *upPos, void *&src) {
+    if (!src) [[unlikely]] {
       return;
     }
-    dest.push_back({});
-    clone(dest.back(), src);
+    if (memberOf(src, &Node::clazz) == LIST_CLASS && memberOf(src, &List::first)) {
+      preprocList(dest, ctx, upPos, src);
+      return;
+    }
+    preproc1(dest, ctx, upPos, src);
   }
 
-  static const Macro *isMacro(const Context &ctx, const UNode &src) noexcept;
-
-  using Pound = void (UNodes &dest, Context &ctx, const Pos *pos, It it, It end);
-
-  static Pound *isPound(const UNode &src) noexcept;
-
-  void preprocList(UNodes &dest, Context &ctx, const Pos *pos, It it, It end) {
-    if (it == end) [[unlikely]] {
-      goto A;
+  void preproc1(void *&dest, Context &ctx, const Pos *upPos, void *&src) {
+    auto &pos = memberOf(src, &Node::pos);
+    if (upPos) {
+      pos = addPos(ctx.poss, makePos(upPos, pos));
     }
-    if (auto m = isMacro(ctx, *it); m) {
-      UNodes a;
-      ExpandContext ec;
-      expand(a, ec, *m, ++it, end);
-      preproc(dest, ctx, a.begin(), a.end());
-      return;
-    }
-    if (auto p = isPound(*it); p) {
-      p(dest, ctx, (**it).pos, ++it, end);
-      return;
-    }
-    A:
-    dest.push_back({});
-    clone(dest.back(), *it);
+    auto &next = link::push(dest, link::pop(src));
+    preproc(next, ctx, upPos, src);
   }
 
-  const Macro *isMacro(const Context &ctx, const UNode &src) noexcept {
-    auto id = dynamic_cast<const IDAtom *>(src.get());
-    if (!id) {
+  static const Macro *isMacro(const Context &ctx, const void *src) noexcept;
+
+  using Pound = void (void *&dest, Context &ctx, const Pos *upPos, const Pos *pos, void *&src);
+
+  static Pound *isPound(const void *src) noexcept;
+
+  void preprocList(void *&dest, Context &ctx, const Pos *upPos, void *&src) {
+    auto &first = memberOf(src, &List::next);
+    if (auto m = isMacro(ctx, first); m) {
+      deleteNode(link::pop(first));
+      void *a = nullptr;
+      CleanNodeGuard g(a);
+      auto ec = makeExpandContext(ctx.err);
+      expand(a, ec, *m, first);
+      auto pos = addPos(ctx.poss, makePos(upPos, m->pos));
+      preproc(dest, ctx, pos, a);
+      a = nullptr;
+      return;
+    }
+    if (auto p = isPound(first); p) {
+      deleteNode(link::pop(first));
+      p(dest, ctx, upPos, memberOf(first, &Node::pos), memberOf(first, &Link::first));
+      return;
+    }
+    preproc1(dest, ctx, upPos, src);
+  }
+
+  const Macro *isMacro(const Context &ctx, const void *src) noexcept {
+    if (memberOf(src, &Node::clazz) != ID_ATOM_CLASS) {
       return nullptr;
     }
-    auto it = ctx.macros.find(id->name);
-    if (it == ctx.macros.end()) {
+    auto a = map::find(ctx.macros, memberOf(src, &IDAtom::name));
+    if (!a) {
       return nullptr;
     }
-    return &it->second;
+    return memberOf(a, &map::Tree<const String *, Macro>::value);
   }
 
   static Pound pound;
@@ -72,30 +78,30 @@ namespace zlt::mylispc {
   static Pound poundMovedef;
   static Pound poundUndef;
 
-  Pound *isPound(const UNode &src) noexcept {
-    auto t = dynamic_cast<const TokenAtom *>(src.get());
-    if (!t) {
+  Pound *isPound(const void *src) noexcept {
+    if (memberOf(src, &Node::clazz) != TOKEN_ATOM_CLASS) {
       return nullptr;
     }
-    if (t->token == "#"_token) {
+    int t = memberOf(src, &TokenAtom::token);
+    if (t == "#"_token) {
       return pound;
     }
-    if (t->token == "##"_token) {
+    if (t == "##"_token) {
       return pound2;
     }
-    if (t->token == "#def"_token) {
+    if (t == "#def"_token) {
       return poundDef;
     }
-    if (t->token == "#if"_token) {
+    if (t == "#if"_token) {
       return poundIf;
     }
-    if (t->token == "#include"_token) {
+    if (t == "#include"_token) {
       return poundInclude;
     }
-    if (t->token == "#movedef"_token) {
+    if (t == "#movedef"_token) {
       return poundMovedef;
     }
-    if (t->token == "#undef"_token) {
+    if (t == "#undef"_token) {
       return poundUndef;
     }
     return nullptr;
