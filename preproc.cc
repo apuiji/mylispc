@@ -70,8 +70,6 @@ namespace zlt::mylispc {
     return memberOf(a, &map::Tree<const String *, Macro>::value);
   }
 
-  static Pound pound;
-  static Pound pound2;
   static Pound poundDef;
   static Pound poundIf;
   static Pound poundInclude;
@@ -81,13 +79,6 @@ namespace zlt::mylispc {
   Pound *isPound(const void *src) noexcept {
     if (memberOf(src, &Node::clazz) != TOKEN_ATOM_CLASS) {
       return nullptr;
-    }
-    int t = memberOf(src, &TokenAtom::token);
-    if (t == "#"_token) {
-      return pound;
-    }
-    if (t == "##"_token) {
-      return pound2;
     }
     if (t == "#def"_token) {
       return poundDef;
@@ -105,6 +96,29 @@ namespace zlt::mylispc {
       return poundUndef;
     }
     return nullptr;
+  }
+
+  void poundDef(void *&dest, Context &ctx, const Pos *upPos, void *&src) {
+    auto &first = memberOf(src, &List::first);
+    if (!first) [[unlikely]] {
+      goto A;
+    }
+    auto &pos = memberOf(src, &Node::pos);
+    if (memberOf(first, &Node::clazz) != ID_ATOM_CLASS) [[unlikely]] {
+      auto pos1 = memberOf(first, &Node::pos);
+      bad::report(ctx.err, bad::UNEXPECTED_TOKEN_ERR, makePos(upPos, pos1));
+      goto A;
+    }
+    auto name = memberOf(first, &IDAtom::name);
+    deleteNode(link::pop(first));
+    if (memberOf(first, &Node::clazz) != LIST_CLASS) [[unlikely]] {
+      auto pos1 = memberOf(first, &Node::pos);
+      bad::report(ctx.err, bad::UNEXPECTED_TOKEN_ERR, makePos(upPos, pos1));
+      goto A;
+    }
+    A:
+    deleteNode(link::pop(src));
+    preproc(dest, ctx, upPos, src);
   }
 
   static String tostr(const void *src) noexcept;
