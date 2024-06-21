@@ -4,6 +4,7 @@
 #include<cstdlib>
 #include"zlt/link.hh"
 #include"zlt/set.hh"
+#include"zlt/uvw.hh"
 
 namespace zlt::mylispc {
   struct Pos;
@@ -12,6 +13,15 @@ namespace zlt::mylispc {
     Link link;
     int clazz;
     const Pos *pos;
+  };
+
+  enum {
+    EOL_ATOM_CLASS,
+    ID_ATOM_CLASS,
+    NUM_ATOM_CLASS,
+    LIST_CLASS,
+    STR_ATOM_CLASS,
+    TOKEN_ATOM_CLASS
   };
 
   static inline Node makeNode(int clazz, const Pos *pos) noexcept {
@@ -33,13 +43,16 @@ namespace zlt::mylispc {
   };
 
   // symbols begin
+  /// @throw bad::Fatal
   const String *addSymbol(Set<String> &dest, const String &symbol);
 
   /// unless symbol already exists, clone and add it
+  /// @throw bad::Fatal
   const String *addSymbol1(Set<String> &dest, const String &symbol);
 
   /// if symbol already exists, free data of param symbol
-  const String *addSymbol2(Set<String> &dest, String &symbol);
+  /// @throw bad::Fatal
+  const String *addSymbol(Set<String> &dest, String &&symbol);
   // symbols end
 
   // positions begin
@@ -83,6 +96,7 @@ namespace zlt::mylispc {
       FATAL = 0x300,
       OOM_FAT,
       UNEXPECTED_TOKEN_FAT,
+      UNKNOWED_REASON_FAT,
       UNRECOGNIZED_SYMB_FAT,
       UNTERMINATED_STR_FAT
     };
@@ -110,7 +124,7 @@ namespace zlt::mylispc {
 
   template<class T>
   static inline T *neo() {
-    auto t = (T *) malloc(sizeof(T));
+    auto t = typeAlloc<T>();
     if (!t) [[unlikely]] {
       throw bad::Fatal(bad::OOM_FAT);
     }

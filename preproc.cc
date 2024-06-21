@@ -7,48 +7,125 @@
 using namespace std;
 
 namespace zlt::mylispc {
-  using Context = PreprocContext;
+  static void writeStr(FILE *dest, const char *data, size_t size) noexcept;
 
-  static void preprocList(void *&dest, Context &ctx, const Pos *upPos, void *&src);
-  static void preproc1(void *&dest, Context &ctx, const Pos *upPos, void *&src);
+  static void writeStr(FILE *dest, const String &s) noexcept {
+    fputc('\'', dest);
+    writeStr(dest, s.data, s.size);
+    fputc('\'', dest);
+  }
 
-  void preproc(void *&dest, Context &ctx, const Pos *upPos, void *&src) {
+  static inline void writeStr(FILE *dest, const String *s) noexcept {
+    writeStr(dest, *s);
+  }
+
+  void write(FILE *dest, const Pos &pos) noexcept {
+    writeStr(dest, pos.file);
+    fprintf(dest, " %d", pos.li);
+  }
+
+  void writeStr(FILE *dest, const char *data, size_t size) noexcept {
+    if (!size) [[unlikely]] {
+      return;
+    }
+    if (*data == '\'') {
+      io::write(dest, "\\'");
+    } else if (*data == '\\') {
+      io::write(dest, "\\\\");
+    } else if (*data == '\n') {
+      io::write(dest, "\\n");
+    } else if (*data == '\r') {
+      io::write(dest, "\\r");
+    } else if (*data == '\t') {
+      io::write(dest, "\\t");
+    } else {
+      fputc(*data, dest);
+    }
+    writeStr(dest, data + 1, size - 1);
+  }
+
+  void write(FILE *dest, const EOLAtom &src) noexcept {
+    fputc('\n', dest);
+  }
+
+  void write(FILE *dest, const NumberAtom &src) noexcept {
+    io::write(dest, *src.raw);
+  }
+
+  void write(FILE *dest, const StringAtom &src) noexcept {
+    writeStr(dest, src.value);
+  }
+
+  void write(FILE *dest, const IDAtom &src) noexcept {
+    io::write(dest, *src.name);
+  }
+
+  void write(FILE *dest, const TokenAtom &src) noexcept {
+    io::write(dest, token::raw(src.token));
+  }
+
+  void write(FILE *dest, const List &src) noexcept {
+    fputc('(', dest);
+    writes(dest, src.first);
+    fputc(')', dest);
+  }
+
+  void write(FILE *dest, const void *src) noexcept {
+    int clazz = memberOf(src, &Node::clazz);
+    if (clazz == EOL_ATOM_CLASS) {
+      write(dest, pointTo<EOLAtom>(src));
+    } else if (clazz == ID_ATOM_CLASS) {
+      write(dest, pointTo<IDAtom>(src));
+    } else if (clazz == NUM_ATOM_CLASS) {
+      write(dest, pointTo<NumAtom>(src));
+    } else if (clazz == LIST_CLASS) {
+      write(dest, pointTo<List>(src));
+    } else if (clazz == STR_ATOM_CLASS) {
+      write(dest, pointTo<StringAtom>(src));
+    } else {
+      write(dest, pointTo<TokenAtom>(src));
+    }
+  }
+
+  void writes(FILE *dest, const void *src) noexcept {
     if (!src) [[unlikely]] {
       return;
     }
-    if (memberOf(src, &Node::clazz) == LIST_CLASS && memberOf(src, &List::first)) {
+    write(dest, src);
+    fputc(' ', dest);
+    writes(dest, memberOf(src, &Link::next));
+  }
+
+  using Context = PreprocContext;
+
+  static void preprocList(FILE *dest, Context &ctx, const Pos *upPos, void *&src);
+
+  void preproc(FILE *dest, Context &ctx, const Pos *upPos, void *&src) {
+    if (!src) [[unlikely]] {
+      return;
+    }
+    int clazz = memberOf(src, &Node::clazz);
+    if (clazz == LIST_CLASS && memberOf(src, &List::first)) {
       preprocList(dest, ctx, upPos, src);
       return;
     }
-    preproc1(dest, ctx, upPos, src);
-  }
-
-  void preproc1(void *&dest, Context &ctx, const Pos *upPos, void *&src) {
-    auto &pos = memberOf(src, &Node::pos);
-    if (upPos) {
-      pos = addPos(ctx.poss, makePos(upPos, pos));
-    }
-    auto &next = link::push(dest, link::pop(src));
-    preproc(next, ctx, upPos, src);
+    write(dest, src);
+    deleteNode(link::pop(src));
+    preproc(dest, ctx, upPos, src);
   }
 
   static const Macro *isMacro(const Context &ctx, const void *src) noexcept;
 
-  using Pound = void (void *&dest, Context &ctx, const Pos *upPos, void *&src);
+  using Pound = void (FILE *dest, Context &ctx, const Pos *upPos, void *&src);
 
   static Pound *isPound(const void *src) noexcept;
 
-  void preprocList(void *&dest, Context &ctx, const Pos *upPos, void *&src) {
-    auto &first = memberOf(src, &List::next);
+  void preprocList(FILE *dest, Context &ctx, const Pos *upPos, void *&src) {
+    auto &first = memberOf(src, &Link::next);
     if (auto m = isMacro(ctx, first); m) {
       deleteNode(link::pop(first));
-      void *a = nullptr;
-      CleanNodeGuard g(a);
       auto ec = makeExpandContext(ctx.err);
-      expand(a, ec, *m, first);
-      auto pos = addPos(ctx.poss, makePos(upPos, m->pos));
-      preproc(dest, ctx, pos, a);
-      a = nullptr;
+      expand(dest, ec, *m, first);
       return;
     }
     if (auto p = isPound(first); p) {
@@ -59,6 +136,8 @@ namespace zlt::mylispc {
     preproc1(dest, ctx, upPos, src);
   }
 
+  using MacroTree = map::Tree<const String *, Macro>;
+
   const Macro *isMacro(const Context &ctx, const void *src) noexcept {
     if (memberOf(src, &Node::clazz) != ID_ATOM_CLASS) {
       return nullptr;
@@ -67,7 +146,7 @@ namespace zlt::mylispc {
     if (!a) {
       return nullptr;
     }
-    return memberOf(a, &map::Tree<const String *, Macro>::value);
+    return memberOf(a, &MacroTree::value);
   }
 
   static Pound poundDef;
@@ -98,27 +177,72 @@ namespace zlt::mylispc {
     return nullptr;
   }
 
-  void poundDef(void *&dest, Context &ctx, const Pos *upPos, void *&src) {
+  static void macroParams(const String **&dest, size_t &size, void *&src);
+
+  void poundDef(FILE *dest, Context &ctx, const Pos *upPos, void *&src) {
     auto &first = memberOf(src, &List::first);
     if (!first) [[unlikely]] {
       goto A;
     }
-    auto &pos = memberOf(src, &Node::pos);
     if (memberOf(first, &Node::clazz) != ID_ATOM_CLASS) [[unlikely]] {
-      auto pos1 = memberOf(first, &Node::pos);
-      bad::report(ctx.err, bad::UNEXPECTED_TOKEN_ERR, makePos(upPos, pos1));
+      auto pos = memberOf(first, &Node::pos);
+      bad::report(ctx.err, bad::UNEXPECTED_TOKEN_ERR, makePos(upPos, pos));
       goto A;
     }
     auto name = memberOf(first, &IDAtom::name);
     deleteNode(link::pop(first));
     if (memberOf(first, &Node::clazz) != LIST_CLASS) [[unlikely]] {
-      auto pos1 = memberOf(first, &Node::pos);
-      bad::report(ctx.err, bad::UNEXPECTED_TOKEN_ERR, makePos(upPos, pos1));
+      auto pos = memberOf(first, &Node::pos);
+      bad::report(ctx.err, bad::UNEXPECTED_TOKEN_ERR, makePos(upPos, pos));
       goto A;
+    }
+    {
+      Macro m = {};
+      FreeGuard g(m.params);
+      CleanNodeGuard g1(m.body);
+      m.pos = memberOf(src, &Node::pos);
+      macroParams(m.params, m.paramc, memberOf(first, &List::first));
+      deleteNode(link::pop(first));
+      m.body = first;
+      first = nullptr;
+      addMacro(ctx.macros, std::move(m));
     }
     A:
     deleteNode(link::pop(src));
     preproc(dest, ctx, upPos, src);
+  }
+
+  static void macroParams(FILE *dest, size_t &size, void *&src);
+
+  void macroParams(const String **&dest, size_t &size, void *&src) {
+    auto f = tmpfile();
+    io::CloseGuard g(f);
+    if (!size) [[unlikely]] {
+      return;
+    }
+    dest = typeAlloc<const String *>(size);
+    if (!dest) {
+      throw bad::makeFat(bad::OOM_FAT);
+    }
+    rewind(f);
+    fread(dest, sizeof(void *), size, f);
+  }
+
+  void macroParams(FILE *dest, size_t &size, void *&src) {
+    if (!src) {
+      return;
+    }
+    int clazz = memberOf(src, &Node::clazz);
+    if (clazz == EOL_ATOM_CLASS) {
+      goto A;
+    }
+    if (clazz == ID_ATOM_CLASS) {
+      auto name = memberOf(src, &IDAtom::name);
+      ;
+    }
+    A:
+    deleteNode(link::pop(src));
+    macroParams(dest, size, src);
   }
 
   static String tostr(const void *src) noexcept;

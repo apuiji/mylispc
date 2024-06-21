@@ -4,75 +4,74 @@
 
 namespace zlt::mylispc {
   using Context = ParseContext;
-  using It = const char *;
 
-  static It node(void *&dest, Context &ctx, It start0, It end);
-  static It nodes(void *&dest, Context &ctx, It end0, It end);
+  static void node(void *&dest, Context &ctx, FILE *src);
+  static void nodes(void *&dest, Context &ctx, FILE *src);
 
-  void parse(void *&dest, Context &ctx, It it, It end) {
-    int token1;
-    It start1 = nodes(dest, ctx, it, end);
-    It end1 = lexer(token1, ctx, start1, end);
+  void parse(void *&dest, Context &ctx, FILE *src) {
+    nodes(dest, ctx, src);
+    int token1 = lexer(ctx, src);
     if (token1 != token::E0F) {
       throw bad::makeFat(bad::UNEXPECTED_TOKEN_FAT, ctx.pos);
     }
   }
 
-  It nodes(void *&dest, Context &ctx, It end0, It end) {
-    It start1 = hit(ctx.pos, end0, end);
-    It end1 = node(dest, ctx, start1, end);
-    if (!end1) {
-      return start1;
+  void nodes(void *&dest, Context &ctx, FILE *src) {
+    hit(src);
+    node(dest, ctx, src);
+    if (!dest) {
+      return;
     }
-    return nodes(memberOf(dest, &Link::next), ctx, end1, end);
+    auto &next = memberOf(dest, &Link::next);
+    nodes(next, ctx, src);
   }
 
-  It node(void *&dest, Context &ctx, It start0, It end) {
-    int token0;
+  void node(void *&dest, Context &ctx, FILE *src) {
     double numval0;
     auto strval0 = string::make();
-    FreeGuard fg(strval0.data);
-    It end0 = lexer(token0, numval0, strval0, ctx, start0, end);
+    const String *raw0;
+    FreeGuard g(strval0.data);
+    int token0 = lexer(numval0, strval0, raw0, ctx, src);
     if (token0 == token::E0F || token0 == ")"_token) [[unlikely]] {
-      return nullptr;
+      return;
     }
     auto pos0 = addPos(ctx.poss, ctx.pos);
-    auto raw0 = string::make(start0, end0);
+    if (token0 == token::EOL) {
+      dest = neo<EOLAtom>();
+      pointTo<EOLAtom>(dest) = makeEOLAtom(pos0);
+      ++ctx.pos.li;
+      return;
+    }
     if (token0 == token::NUMBER) {
-      auto raw = addSymbol1(ctx.symbols, raw0);
       dest = neo<NumberAtom>();
-      pointTo<NumberAtom>(dest) = makeNumberAtom(pos0, raw, numval0);
-      return end0;
+      pointTo<NumberAtom>(dest) = makeNumberAtom(pos0, raw0, numval0);
+      return;
     }
     if (token0 == token::STRING) {
-      auto value = addSymbol(ctx.symbols, strval0);
-      strval0.data = nullptr;
+      auto value = addSymbol(ctx.symbols, std::move(strval0));
       dest = neo<StringAtom>();
       pointTo<StringAtom>(dest) = makeStringAtom(pos0, value);
-      return end0;
+      return;
     }
     if (token0 == token::ID) {
-      auto name = addSymbol1(ctx.symbols, raw0);
       dest = neo<IDAtom>();
-      pointTo<IDAtom>(dest) = makeIDAtom(pos0, name);
-      return end0;
+      pointTo<IDAtom>(dest) = makeIDAtom(pos0, raw0);
+      return;
     }
     if (token0 == "("_token) {
       void *first1 = nullptr;
-      CleanNodeGuard g(first1);
-      It start2 = nodes(first1, ctx, end0, end);
-      int token2;
-      It end2 = lexer(token2, ctx, start2, end);
+      CleanNodeGuard g1(first1);
+      nodes(first1, ctx, src);
+      int token2 = lexer(ctx, src);
       if (token2 != ")"_token) {
-        throw bad::makeFat(bad::UNEXPECTED_TOKEN, ctx.pos);
+        throw bad::makeFat(bad::UNEXPECTED_TOKEN_FAT, ctx.pos);
       }
       dest = neo<List>();
-      pointTo<List>(dest) = makeList(pos0, first);
+      pointTo<List>(dest) = makeList(pos0, first1);
       first1 = nullptr;
-      return end2;
+      return;
     }
     dest = neo<TokenAtom>();
     pointTo<TokenAtom>(dest) = makeTokenAtom(pos0, token0);
-    return end0;
   }
 }

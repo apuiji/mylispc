@@ -1,180 +1,216 @@
 #include<cctype>
 #include"parse.hh"
 #include"token.hh"
-#include"zlt/guard.hh"
+#include"zlt/io.hh"
 
 namespace zlt::mylispc {
   using Context = ParseContext;
-  using It = const char *;
 
-  static It lineComment(Pos &pos, It it, It end) noexcept;
+  static void lineComment(FILE *src) noexcept;
 
-  It hit(Pos &pos, It it, It end) noexcept {
-    if (it == end) [[unlikely]] {
-      return end;
+  void hit(FILE *src) noexcept {
+    int c = fgetc(src);
+    if (c == EOF) [[unlikely]] {
+      return;
     }
-    if (*it == '\n') {
-      ++pos.li;
-      return hit(pos, it + 1, end);
+    if (c == '\n') {
+      goto A;
     }
-    if (isspace(*it)) {
-      return hit(pos, it + 1, end);
+    if (isspace(c)) {
+      hit(src);
+      return;
     }
-    if (*it == ';') {
-      return lineComment(pos, it + 1, end);
+    if (c == ';') {
+      lineComment(src);
+      return;
     }
-    return it;
+    A:
+    ungetc(c, src);
   }
 
-  It lineComment(Pos &pos, It it, It end) noexcept {
-    if (it == end) [[unlikely]] {
-      return end;
+  void lineComment(FILE *src) noexcept {
+    int c = fgetc(src);
+    if (c == EOF) [[unlikely]] {
+      return;
     }
-    if (*it == '\n') {
-      return hit(pos, it, end);
+    if (c == '\n') {
+      ungetc(c, src);
+      return;
     }
-    return lineComment(pos, it + 1, end);
+    lineComment(src);
   }
 
-  static const char *lexerStr(string &strval, Context &ctx, int quot, It it, It end);
-  static It consumeRaw(It it, It end) noexcept;
+  /// @throw bad::Fatal
+  static void lexerStr(String &strval, Context &ctx, int quot, FILE *src);
 
-  It lexer(int &tokval, double &numval, string &strval, Context &ctx, It it, It end) {
-    if (it == end) [[unlikely]] {
-      tokval = token::E0F;
-      return end;
+  static void consumeRaw(size_t &size, FILE *src) noexcept;
+
+  int lexer(double &numval, String &strval, const String *&raw, Context &ctx, FILE *src) {
+    if (feof(src)) [[unlikely]] {
+      return token::E0F;
     }
-    if (*it == '(') {
-      tokval = "("_token;
-      return it + 1;
+    int c = fgetc(src);
+    if (c == '\n') {
+      return token::EOL;
     }
-    if (*it == ')') {
-      tokval = ")"_token;
-      return it + 1;
+    if (c == '(') {
+      return "("_token;
     }
-    if (*it == '"' || *it == '\'') {
-      tokval = token::STRING;
-      rewind(ctx.strout);
-      ctx.strsize = 0;
-      return lexerStr(strval, ctx, *it, it + 1, end);
+    if (c == ')') {
+      return ")"_token;
     }
-    It it1 = consumeRaw(it, end);
-    if (it1 == it) {
+    if (c == '"' || c == '\'') {
+      lexerStr(strval, ctx, c, src);
+      return token::STRING;
+    }
+    size_t n = 0;
+    consumeRaw(n, src);
+    if (!n) {
       throw bad::makeFat(bad::UNRECOGNIZED_SYMB_FAT, ctx.pos);
     }
-    auto raw = string::make(it, it1);
-    tokval = token::fromRaw(numval, ctx.err, ctx.pos, raw);
-    return it1;
-  }
-
-  It consumeRaw(It it, It end) noexcept {
-    while (it != end && !strchr("\"'();", *it) && !isspace(c)) {
-      ++it;
+    auto data = typeAlloc<char>(n);
+    if (!data) {
+      throw bad::makeFat(bad::OOM_FAT);
     }
-    return it;
+    FreeGuard g(data);
+    auto raw1 = string::make(data, n);
+    int t = token::fromRaw(numval, ctx.err, ctx.pos, raw1);
+    if (t == token::ID || t == token::NUMBER) {
+      raw = addSymbol(ctx.symbols, std::move(raw1));
+    }
+    return t;
   }
 
-  static size_t esch(int &dest, It it, It end) noexcept;
-  static It consumeStr(int quot, It it, It end) noexcept;
+  void consumeRaw(size_t &size, FILE *src) noexcept {
+    int c = fgetc(src);
+    if (c == EOF || strchr("\"'();", c) || isspace(c)) {
+      return;
+    }
+    ++size;
+    consumeRaw(size, src);
+  }
 
-  It lexerStr(String &strval, Context &ctx, int quot, It it, It end) {
-    if (it == end) [[unlikely]] {
+  /// @throw bad::Fatal
+  static void lexerStr(FILE *dest, size_t &size, Context &ctx, int quot, FILE *src);
+
+  void lexerStr(String &strval, Context &ctx, int quot, FILE *src) {
+    auto sb = tmpfile();
+    io::CloseGuard g(sb);
+    size_t size = 0;
+    lexerStr(sb, size, ctx, quot, src);
+    rewind(sb);
+    auto data = typeAlloc<char>(size);
+    if (!data) {
+      throw bad::makeFat(bad::OOM_FAT);
+    }
+    FreeGuard g1(data);
+    fread(data, 1, size, sb);
+    strval.data = data;
+    strval.size = size;
+    data = nullptr;
+  }
+
+  static void esch(int &dest, FILE *src) noexcept;
+
+  void lexerStr(FILE *dest, size_t &size, Context &ctx, int quot, FILE *src) {
+    if (feof(src)) [[unlikely]] {
       throw bad::makeFat(bad::UNTERMINATED_STR_FAT, ctx.pos);
     }
-    if (*it == quot) {
-      char *data = (char *) malloc(ctx.strsize);
-      if (!data) {
-        throw bad::makeFat(bad::OOM_FAT);
-      }
-      rewind(ctx.strout);
-      fread(data, 1, ctx.strsize, ctx.strout);
-      strval = string::make(data, ctx.strsize);
-      return it + 1;
+    int c = fgetc(src);
+    if (c == quot) {
+      return;
     }
-    if (*it == '\\') {
-      int c;
-      size_t n = esch(c, it + 1, end);
-      fputc(c, ctx.strout);
-      return lexerStr(strval, ctx, quot, it + 1 + n, end);
+    if (c == '\\') {
+      esch(c, src);
     }
-    It it1 = consumeStr(quot, it + 1, end);
-    fwrite(it, 1, it1 - it, ctx.strout);
-    return lexerStr(strval, ctx, quot, it1, end);
+    fputc(c, dest);
+    ++size;
+    lexerStr(dest, size, ctx, quot, src);
   }
 
-  static size_t esch8(int &dest, It it, It end, size_t limit) noexcept;
-  static size_t esch16(int &dest, It it, It end) noexcept;
+  static void esch8(int &dest, FILE *src, size_t limit) noexcept;
+  static void esch16(int &dest, FILE *src) noexcept;
 
-  size_t esch(int &dest, It it, It end) noexcept {
-    if (it == end) {
+  void esch(int &dest, FILE *src) noexcept {
+    if (feof(src)) [[unlikely]] {
       dest = '\\';
-      return 0;
+      return;
     }
-    if (*it == '"' || *it == '\'' || *it == '\\') {
-      dest = *it;
-      return 1;
+    int c = fgetc(src);
+    if (c == '"' || c == '\'' || c == '\\') {
+      dest = c;
+      return;
     }
-    if (*it == 'n') {
+    if (c == 'n') {
       dest = '\n';
-      return 1;
+      return;
     }
-    if (*it == 'r') {
+    if (c == 'r') {
       dest = '\r';
-      return 1;
+      return;
     }
-    if (*it == 't') {
+    if (c == 't') {
       dest = '\t';
-      return 1;
+      return;
     }
-    if (*it >= '0' && *it <= '3') {
-      return esch8(dest, it, end, 3);
+    if (c >= '0' && c <= '3') {
+      dest = c - '0';
+      esch8(dest, src, 2);
+      return;
     }
-    if (*it >= '4' && *it <= '7') {
-      return esch8(dest, it, end, 2);
+    if (c >= '4' && c <= '7') {
+      dest = c - '0';
+      esch8(dest, src, 1);
+      return;
     }
     if (*it == 'x') {
-      return esch16(dest, it, end);
+      esch16(dest, src);
+      return;
     }
     dest = '\\';
-    return 0;
   }
 
-  size_t esch8(int &dest, It it, It end, size_t limit) noexcept {
-    dest = 0;
-    int n = 0;
-    for (; it != end && n < limit && *it >= '0' && *it <= '7'; ++it, ++n) {
-      dest = (dest << 3) | (*it - '0');
+  void esch8(int &dest, FILE *src, size_t limit) noexcept {
+    if (feof(src) || !limit) [[unlikely]] {
+      return;
     }
-    return n;
+    int c = isDigitChar(fgetc(src), 8);
+    if (c < 0) {
+      ungetc(c, src);
+      return;
+    }
+    dest = (dest << 3) | c;
+    esch8(dest, src, limit - 1);
   }
 
-  size_t esch16(int &dest, It it, It end) noexcept {
-    if (end - it < 3) [[unlikely]] {
+  void esch16(int &dest, FILE *src) noexcept {
+    if (feof(src)) {
       goto A;
     }
-    int a = isDigitChar(it[1]);
-    int b = isDigitChar(it[2]);
-    if (a < 0 || b < 0) {
-      goto A;
+    int c = isDigitChar(fgetc(src), 16);
+    if (c < 0 || feof(src)) {
+      goto B;
     }
-    dest = (a << 4) | b;
-    return 3;
+    int c1 = isDigitChar(fgetc(src), 16);
+    if (c1 < 0) {
+      goto C;
+    }
+    dest = (c << 4) | c1;
+    return;
+    C:
+    ungetc(c1, src);
+    B:
+    ungetc(c, src);
     A:
+    ungetc('x', src);
     dest = '\\';
-    return 0;
   }
 
-  It consumeStr(int quot, It it, It end) noexcept {
-    while (it != end && *it != '\\' && *it != quot) {
-      ++it;
-    }
-    return it;
-  }
-
-  It lexer(int &tokval, Context &ctx, It it, It end) {
+  int lexer(Context &ctx, FILE *src) {
     double d;
     auto s = string::make();
     FreeGuard fg(s.data);
-    return lexer(tokval, d, s, ctx, it, end);
+    const String *raw;
+    return lexer(d, s, raw, ctx, src);
   }
 }
