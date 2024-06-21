@@ -104,7 +104,7 @@ namespace zlt::mylispc {
       throw bad::makeFat(bad::OOM_FAT);
     }
     FreeGuard g1(data);
-    fread(data, 1, size, sb);
+    io::read(data, size, sb);
     strval.data = data;
     strval.size = size;
     data = nullptr;
