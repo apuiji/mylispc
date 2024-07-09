@@ -4,15 +4,15 @@
 #include<cstdlib>
 #include"zlt/link.hh"
 #include"zlt/set.hh"
-#include"zlt/uvw.hh"
+#include"zlt/xyz.hh"
 
 namespace zlt::mylispc {
   struct Pos;
 
   struct Node {
-    Link link;
     int clazz;
     const Pos *pos;
+    Link link;
   };
 
   enum {
@@ -28,31 +28,43 @@ namespace zlt::mylispc {
     return (Node) { .link = link::make(), .clazz = clazz, .pos = pos };
   }
 
-  void deleteNode(void *node) noexcept;
+  void deleteNode(Node *node) noexcept;
+  void cleanNode(Node *node) noexcept;
 
-  static inline void cleanNode(void *node) noexcept {
-    link::clean(node, nullptr, deleteNode);
-  }
+  struct DeleteNodeGuard {
+    Node *&node;
+    DeleteNodeGuard(Node *&node) noexcept: node(node) {}
+    ~DeleteNodeGuard() {
+      deleteNode(node);
+    }
+  };
 
   struct CleanNodeGuard {
-    void *&node;
-    CleanNodeGuard(void *&node) noexcept: node(node) {}
+    Node *&node;
+    CleanNodeGuard(Node *&node) noexcept: node(node) {}
     ~CleanNodeGuard() {
       cleanNode(node);
     }
   };
 
+  static inline Node *nextNode(const Node *node) noexcept {
+    return containerOf(node->link.next, &Node::link);
+  }
+
   // symbols begin
   /// @throw bad::Fatal
   const String *addSymbol(Set<String> &dest, const String &symbol);
 
-  /// unless symbol already exists, clone and add it
+  /// unset symbol data when already exists
   /// @throw bad::Fatal
-  const String *addSymbol1(Set<String> &dest, const String &symbol);
+  const String *moveSymbol(Set<String> &dest, String &symbol);
 
-  /// if symbol already exists, free data of param symbol
+  /// unset symbol data when already exists
   /// @throw bad::Fatal
-  const String *addSymbol(Set<String> &dest, String &&symbol);
+  const String *moveSymbol(Set<String> &dest, String &&symbol) {
+    FreeGuard fg(symbol.data);
+    return moveSymbol(dest, symbol);
+  }
   // symbols end
 
   // positions begin
